@@ -365,6 +365,7 @@
     #costBreakdownTable th, #costBreakdownTable td, #bomTable th, #bomTable td { width: auto; }
     #bomTable .num, #bomTable .money { text-align: right; white-space: nowrap; }
     #bomTable th:first-child, #bomTable td:first-child { min-width: 86px; }
+    .form-note { margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
     .footer-band {
       padding: 20px 18px 28px;
       color: var(--muted);
@@ -407,7 +408,7 @@
     <div class="top-actions">
       <a class="ghost-btn link-btn" href="./admin.html" target="_blank" rel="noopener">관리자</a>
       <button class="ghost-btn" id="resetBtn">초기화</button>
-      <button class="primary-btn" id="openDetailTop">상세내역보기</button>
+      <button class="primary-btn" id="openDetailTop">상세견적</button>
     </div>
   </header>
 
@@ -569,7 +570,7 @@
             <div class="badge" id="statusBadge">표준 매칭</div>
             <div class="amount" id="quoteAmount">-</div>
           </div>
-          <button class="primary-btn" id="openDetailSide">상세내역보기</button>
+          <button class="primary-btn" id="openDetailSide">상세견적</button>
         </div>
         <div class="note" id="quoteNote">구조물 기준 공사비와 MESH 환경제어 옵션을 분리해 보여줍니다.</div>
       </section>
@@ -586,6 +587,49 @@
       </section>
     </aside>
   </div>
+
+  <iframe name="leadSubmitFrame" hidden title="견적 문의 전송"></iframe>
+  <dialog id="leadDialog">
+    <form id="leadForm" action="https://formsubmit.co/taebyoungjeon@gmail.com" method="POST" target="leadSubmitFrame">
+      <div class="modal-head">
+        <strong>상세견적 문의하기</strong>
+        <button class="icon-btn" id="closeLead" type="button" aria-label="닫기">×</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="_subject" value="MESH 온실 상세견적 문의">
+        <input type="hidden" name="_captcha" value="false">
+        <input type="hidden" name="_template" value="table">
+        <input type="hidden" name="quote_summary" id="leadQuoteSummary">
+        <input type="hidden" name="quote_detail" id="leadQuoteDetail">
+        <input type="hidden" name="page_url" id="leadPageUrl">
+        <div class="detail-grid">
+          <div class="field">
+            <label for="leadEmail">이메일</label>
+            <input id="leadEmail" name="email" type="email" required placeholder="example@email.com">
+          </div>
+          <div class="field">
+            <label for="leadPhone">핸드폰 번호</label>
+            <input id="leadPhone" name="phone" type="tel" required pattern="[0-9+\-\s]{8,20}" placeholder="010-0000-0000">
+          </div>
+        </div>
+        <div class="field">
+          <label for="leadMemo">기타 요구사항</label>
+          <textarea id="leadMemo" name="extra_request" required placeholder="예: 희망 시공지역, 필요한 옵션, 현장 조건"></textarea>
+        </div>
+        <div class="field">
+          <label>상담 희망</label>
+          <div class="option-grid">
+            <label class="check-row"><input type="radio" name="consultation_wanted" value="yes" required> 예</label>
+            <label class="check-row"><input type="radio" name="consultation_wanted" value="no" required> 아니오</label>
+          </div>
+        </div>
+        <p class="form-note">입력 내용과 견적 조건은 taebyoungjeon@gmail.com으로 전송됩니다. 제출 후 상세견적 내역을 볼 수 있습니다.</p>
+        <div class="estimate-actions">
+          <button class="primary-btn" type="submit">제출하고 상세내역 보기</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="detailDialog">
     <div class="modal-head">
@@ -667,6 +711,8 @@
     let selected = null;
     let wizardStep = 0;
     let wizardComplete = false;
+    let leadSubmitted = false;
+    let leadInfo = {};
     const wizardMaxStep = 9;
 
     function n(v) { return Number(String(v || '').replace(/[^\d.-]/g, '')) || 0; }
@@ -1053,13 +1099,46 @@
         <article class="term"><h4>${g.term}</h4><p>${g.plain_description}</p><small>${g.why_it_matters_for_quote}</small></article>
       `).join('');
     }
-    function openDetail() {
-      if (!wizardComplete) {
-        wizardStep = Math.min(wizardStep + 1, wizardMaxStep);
-        updateWizard();
-        return;
-      }
+    function invalidateLead() {
+      leadSubmitted = false;
+    }
+    function quoteSummary(q) {
+      const requests = requestLabels().join(', ') || '추가 선택 없음';
+      return [
+        `시설: ${facilityType} ${els.width.value}m x ${els.length.value}m x ${els.span.value}동`,
+        `측고: ${els.side.value}m`,
+        `작목: ${els.crop.value}`,
+        `피복: ${q.coverFilm.name}`,
+        `추천규격: ${q.selected.model_code}`,
+        `예상면적: ${Math.round(q.area).toLocaleString('ko-KR')}㎡`,
+        `초기투자: ${won(q.initialMin)}~${won(q.initialMax)}`,
+        `추가요청: ${requests}`
+      ].join(' / ');
+    }
+    function fillLeadHiddenFields() {
       const q = estimate();
+      const requests = requestLabels().join(', ') || '추가 선택 없음';
+      document.querySelector('#leadQuoteSummary').value = quoteSummary(q);
+      document.querySelector('#leadQuoteDetail').value = [
+        `내재해: 적설 ${q.selected.snow_depth_range_cm}, 풍속 ${q.selected.wind_speed_range_m_s}`,
+        `측고보정: 표준 ${q.heightAdj.standardSide.toFixed(1)}m → 입력 ${els.side.value}m, x${q.heightAdj.costFactor.toFixed(2)}`,
+        `MESH: ${els.control.value}ch, 센서 ${els.sensor.value}점`,
+        `월구독: ${q.mesh.plan} ${won(q.mesh.monthly)}/월`,
+        `추가요청: ${requests}`
+      ].join('\n');
+      document.querySelector('#leadPageUrl').value = location.href;
+    }
+    function readLeadInfo() {
+      return {
+        email: document.querySelector('#leadEmail')?.value.trim() || '',
+        phone: document.querySelector('#leadPhone')?.value.trim() || '',
+        memo: document.querySelector('#leadMemo')?.value.trim() || '',
+        consult: document.querySelector('input[name="consultation_wanted"]:checked')?.value || ''
+      };
+    }
+    function showDetail() {
+      const q = estimate();
+      const consultText = leadInfo.consult === 'yes' ? '예' : leadInfo.consult === 'no' ? '아니오' : '-';
       document.querySelector('#inputTable').innerHTML = tableRows({
         시설형태: facilityType,
         폭: `${els.width.value}m`,
@@ -1068,7 +1147,11 @@
         동수: els.span.value,
         작목: els.crop.value,
         피복비닐: `${q.coverFilm.name} (${q.coverFilm.note})`,
-        MESH: `${els.control.value}ch / 센서 ${els.sensor.value}점`
+        MESH: `${els.control.value}ch / 센서 ${els.sensor.value}점`,
+        이메일: leadInfo.email || '-',
+        핸드폰: leadInfo.phone || '-',
+        상담희망: consultText,
+        기타요구사항: leadInfo.memo || '-'
       });
       document.querySelector('#basisTable').innerHTML = tableRows({
         추천규격: q.selected.model_code,
@@ -1082,10 +1165,23 @@
       });
       syncRequestOptionsToDetail();
       const requests = requestLabels().join(', ') || '추가 선택 없음';
-      document.querySelector('#inquiryText').value = `견적 검토 요청: ${facilityType} ${els.width.value}m x ${els.length.value}m x ${els.span.value}동, ${els.crop.value}. 피복 ${q.coverFilm.name}. 추천규격 ${q.selected.model_code}. 추가 요청: ${requests}`;
+      document.querySelector('#inquiryText').value = `견적 검토 요청: ${facilityType} ${els.width.value}m x ${els.length.value}m x ${els.span.value}동, ${els.crop.value}. 피복 ${q.coverFilm.name}. 추천규격 ${q.selected.model_code}. 추가 요청: ${requests}. 상담희망: ${consultText}. 기타 요구사항: ${leadInfo.memo || '-'}. 연락처: ${leadInfo.email || '-'} / ${leadInfo.phone || '-'}`;
       renderDetailedTables();
       document.querySelector('#detailDialog').showModal();
       renderDetailedTables();
+    }
+    function openDetail() {
+      if (!wizardComplete) {
+        wizardStep = Math.min(wizardStep + 1, wizardMaxStep);
+        updateWizard();
+        return;
+      }
+      if (!leadSubmitted) {
+        fillLeadHiddenFields();
+        document.querySelector('#leadDialog').showModal();
+        return;
+      }
+      showDetail();
     }
     document.querySelector('#typeTabs').addEventListener('click', e => {
       const btn = e.target.closest('button');
@@ -1096,20 +1192,31 @@
       if (facilityType === '광폭형') { els.width.value = 14.8; els.span.value = 1; els.side.value = 2.2; els.control.value = 14; els.sensor.value = 2; }
       if (facilityType === '단동형') { els.width.value = 7; els.span.value = 1; els.side.value = 1.4; els.control.value = 6; els.sensor.value = 1; }
       wizardComplete = false;
+      invalidateLead();
       wizardStep = 1;
       updateWizard();
       updateUI();
     });
     Object.values(els).filter(Boolean).forEach(el => {
-      el.addEventListener('input', () => { updateUI(); updateWizard(); });
-      el.addEventListener('change', () => { updateUI(); updateWizard(); });
+      el.addEventListener('input', () => { invalidateLead(); updateUI(); updateWizard(); });
+      el.addEventListener('change', () => { invalidateLead(); updateUI(); updateWizard(); });
     });
     ['#reqAutoVent','#reqCurtain','#reqScreen','#reqIrrigation'].forEach(id => {
-      document.querySelector(id)?.addEventListener('change', () => { updateWizard(); });
+      document.querySelector(id)?.addEventListener('change', () => { invalidateLead(); updateWizard(); });
     });
     document.querySelector('#resetBtn').addEventListener('click', () => location.reload());
     document.querySelector('#openDetailTop').addEventListener('click', openDetail);
     document.querySelector('#openDetailSide').addEventListener('click', openDetail);
+    document.querySelector('#closeLead').addEventListener('click', () => document.querySelector('#leadDialog').close());
+    document.querySelector('#leadForm').addEventListener('submit', () => {
+      fillLeadHiddenFields();
+      leadInfo = readLeadInfo();
+      leadSubmitted = true;
+      setTimeout(() => {
+        document.querySelector('#leadDialog').close();
+        showDetail();
+      }, 500);
+    });
     document.querySelector('#closeDetail').addEventListener('click', () => document.querySelector('#detailDialog').close());
     document.querySelector('#prevStep').addEventListener('click', () => {
       wizardComplete = false;
