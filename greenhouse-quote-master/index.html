@@ -44,7 +44,7 @@
     }
     .brand { font-weight: 760; }
     .top-actions { display: flex; gap: 8px; align-items: center; }
-    .ghost-btn, .primary-btn, .icon-btn {
+    .ghost-btn, .primary-btn, .icon-btn, .link-btn {
       border: 1px solid var(--line);
       background: #fff;
       color: var(--ink);
@@ -52,6 +52,10 @@
       padding: 0 14px;
       border-radius: 7px;
       cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     .primary-btn { background: var(--green); border-color: var(--green); color: #fff; }
     .icon-btn { width: 38px; padding: 0; display: grid; place-items: center; }
@@ -217,11 +221,48 @@
     .term h4 { margin: 0 0 6px; font-size: 14px; }
     .term p { margin: 0 0 8px; color: var(--muted); font-size: 13px; line-height: 1.45; }
     .term small { color: var(--blue); }
+    .option-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(130px, 1fr));
+      gap: 10px;
+      margin: 10px 0 16px;
+    }
+    .check-row {
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--field);
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--ink);
+    }
+    .check-row input { width: auto; min-height: auto; margin: 0; }
+    .estimate-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 0; }
+    .estimate-note {
+      border: 1px solid #d9c9a8;
+      background: #fff8e8;
+      color: #654411;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      margin: 12px 0;
+    }
+    .assumption-list {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
     dialog {
       border: 0;
       padding: 0;
       border-radius: 10px;
-      width: min(840px, calc(100vw - 32px));
+      width: min(1080px, calc(100vw - 32px));
       box-shadow: var(--shadow);
     }
     dialog::backdrop { background: rgba(20, 30, 24, .38); }
@@ -254,8 +295,19 @@
       main { display: block; }
       .scene-wrap { height: 420px; }
       .metric-grid { grid-template-columns: 1fr 1fr; }
-      .field-grid, .detail-grid { grid-template-columns: 1fr; }
+      .field-grid, .detail-grid, .option-grid { grid-template-columns: 1fr; }
       .scene-overlay h1 { font-size: 34px; }
+    }
+    @media print {
+      .topbar, .layout, .modal-head .icon-btn, .estimate-actions { display: none !important; }
+      dialog[open] {
+        position: static;
+        width: auto;
+        box-shadow: none;
+        border-radius: 0;
+      }
+      dialog::backdrop { display: none; }
+      .modal-body { max-height: none; overflow: visible; }
     }
   </style>
 </head>
@@ -263,6 +315,7 @@
   <header class="topbar">
     <div class="brand">MESH 온실 견적 시뮬레이터</div>
     <div class="top-actions">
+      <a class="ghost-btn link-btn" href="./admin.html" target="_blank" rel="noopener">관리자</a>
       <button class="ghost-btn" id="resetBtn">초기화</button>
       <button class="primary-btn" id="openDetailTop">상세문의</button>
     </div>
@@ -407,6 +460,40 @@
       </div>
       <h3>상세 요청 메시지</h3>
       <textarea id="inquiryText"></textarea>
+      <h3>고객 조정 옵션</h3>
+      <div class="option-grid">
+        <label class="check-row"><input type="checkbox" id="optAutoVent" checked> 측창 자동개폐</label>
+        <label class="check-row"><input type="checkbox" id="optCurtain"> 다겹보온커튼</label>
+        <label class="check-row"><input type="checkbox" id="optScreen"> 차광/스크린</label>
+        <label class="check-row"><input type="checkbox" id="optIrrigation"> 관수/양액 연동</label>
+        <div class="field">
+          <label for="optStructureFactor">구조/현장 보정 %</label>
+          <input id="optStructureFactor" type="number" min="-20" max="40" step="5" value="0">
+        </div>
+        <div class="field">
+          <label for="optInstallFactor">설치/배선 보정 %</label>
+          <input id="optInstallFactor" type="number" min="-20" max="50" step="5" value="0">
+        </div>
+      </div>
+      <div class="estimate-note">
+        아래 상세 원가계산서와 물량내역서는 표준 모델 기반 초안입니다. 도면, 실제 기초 방식, 지역 운반비, 전기 인입, 커튼/스크린 제품 사양은 아직 미확정이므로 임의 가정 항목으로 표시했습니다.
+      </div>
+      <div class="detail-grid">
+        <div>
+          <h3>상세 원가계산서 초안</h3>
+          <table class="mini-table" id="costBreakdownTable"></table>
+        </div>
+        <div>
+          <h3>물량내역서 초안</h3>
+          <table class="mini-table" id="bomTable"></table>
+        </div>
+      </div>
+      <h3>임의 가정 및 옵션</h3>
+      <ul class="assumption-list" id="assumptionList"></ul>
+      <div class="estimate-actions">
+        <button class="primary-btn" id="printDetail" type="button">견적서 출력</button>
+        <a class="ghost-btn link-btn" href="./admin.html" target="_blank" rel="noopener">관리자에서 세부 단가 조정</a>
+      </div>
       <p style="color:var(--muted);font-size:13px;line-height:1.5">홈페이지 적용 시 이 내용은 CRM, 이메일, 카카오 알림톡, 또는 내부 견적 검토 큐로 전송하면 됩니다.</p>
     </div>
   </dialog>
@@ -506,6 +593,107 @@
     function tableRows(obj) {
       return Object.entries(obj).map(([k,v]) => `<tr><th>${k}</th><td>${v || '-'}</td></tr>`).join('');
     }
+    function parseSpacingM(spec) {
+      const m = String(spec || '').match(/@(\d+(?:\.\d+)?)/);
+      if (!m) return 0.6;
+      const raw = Number(m[1]);
+      return raw > 5 ? raw / 100 : raw;
+    }
+    function parsePurlinRows(spec, type) {
+      const m = String(spec || '').match(/(\d+)\s*개/);
+      if (m) return Number(m[1]);
+      if (type === '연동형') return 9;
+      if (type === '광폭형') return 11;
+      return 7;
+    }
+    function readDetailOptions() {
+      const byId = id => document.querySelector(id);
+      return {
+        autoVent: byId('#optAutoVent')?.checked ?? true,
+        curtain: byId('#optCurtain')?.checked ?? false,
+        screen: byId('#optScreen')?.checked ?? false,
+        irrigation: byId('#optIrrigation')?.checked ?? false,
+        structureFactor: n(byId('#optStructureFactor')?.value),
+        installFactor: n(byId('#optInstallFactor')?.value)
+      };
+    }
+    function detailedEstimate(q, opts = readDetailOptions()) {
+      const width = n(els.width.value);
+      const length = n(els.length.value);
+      const span = Math.max(1, n(els.span.value));
+      const side = n(els.side.value);
+      const spacing = parseSpacingM(q.selected.rafter_spec);
+      const purlinRows = parsePurlinRows(q.selected.purlin_or_beam_spec, facilityType);
+      const rafterPerSpan = Math.ceil(length / spacing) + 1;
+      const rafterCount = rafterPerSpan * span;
+      const archLength = width * 1.32 + side * 2;
+      const rafterPipeM = rafterCount * archLength;
+      const purlinPipeM = purlinRows * length * span;
+      const coverM2 = q.area * 1.42;
+      const foundationM = facilityType === '연동형' ? length * (span + 1) : length * span * 2;
+      const clampCount = Math.round(rafterCount * purlinRows * 1.08);
+      const braceSet = Math.max(4, Math.ceil(span * length / 28));
+      const motorCount = opts.autoVent ? Math.max(2, span * 2) : 0;
+      const curtainM2 = opts.curtain ? q.area : 0;
+      const screenM2 = opts.screen ? q.area : 0;
+      const structureBase = q.structure * (1 + opts.structureFactor / 100);
+      const installBase = ((q.installMin + q.installMax) / 2) * (1 + opts.installFactor / 100);
+      const rows = [
+        { item: '골조 파이프/주요 구조재', basis: 'AKAF 구조비 42%', amount: structureBase * 0.42, note: '표준 예정공사비 배분' },
+        { item: '피복/마감재', basis: 'AKAF 구조비 14%', amount: structureBase * 0.14, note: '피복 면적은 임의 추정' },
+        { item: '기초/고정', basis: 'AKAF 구조비 18%', amount: structureBase * 0.18, note: '기초 방식 미확정' },
+        { item: '체결부속/조리개', basis: 'AKAF 구조비 8%', amount: structureBase * 0.08, note: '교차점 기준 임의 추정' },
+        { item: '시공 노무/장비', basis: 'AKAF 구조비 18%', amount: structureBase * 0.18, note: '지역/현장 보정 필요' },
+        { item: 'MESH 환경제어 HW', basis: `${els.control.value}ch, 센서 ${els.sensor.value}점`, amount: q.mesh.hw, note: 'MESH 가격표 기준' },
+        { item: '설치/배선/시운전', basis: `보정 ${opts.installFactor}%`, amount: installBase, note: '배선거리 미확정' }
+      ];
+      if (motorCount) rows.push({ item: '측창 자동개폐 모터/축', basis: `${motorCount}대 x 350,000원`, amount: motorCount * 350000, note: '모터 사양 임의' });
+      if (curtainM2) rows.push({ item: '다겹보온커튼', basis: `${Math.round(curtainM2).toLocaleString('ko-KR')}㎡ x 22,000원`, amount: curtainM2 * 22000, note: '원단/겹수 임의' });
+      if (screenM2) rows.push({ item: '차광/스크린', basis: `${Math.round(screenM2).toLocaleString('ko-KR')}㎡ x 12,000원`, amount: screenM2 * 12000, note: '스크린율 임의' });
+      if (opts.irrigation) rows.push({ item: '관수/양액 제어 연동', basis: '1식', amount: 1800000, note: '기존 양액기 연동 여부 미확정' });
+      const subtotal = rows.reduce((sum, r) => sum + r.amount, 0);
+      const contingency = subtotal * 0.07;
+      const total = subtotal + contingency;
+      const bom = [
+        ['서까래 파이프', `${Math.round(rafterPipeM).toLocaleString('ko-KR')} m`, `${rafterCount.toLocaleString('ko-KR')}본, 간격 ${spacing.toFixed(2)}m`, '표준 규격에서 간격 추출'],
+        ['가로대/도리 파이프', `${Math.round(purlinPipeM).toLocaleString('ko-KR')} m`, `${purlinRows}줄`, '줄 수는 도면 확인 필요'],
+        ['피복비닐/마감재', `${Math.round(coverM2).toLocaleString('ko-KR')} ㎡`, '면적 x 1.42', '겹침/여유율 임의'],
+        ['기초/고정 구간', `${Math.round(foundationM).toLocaleString('ko-KR')} m`, facilityType === '연동형' ? '스팬 경계 기준' : '양측면 기준', '현장 기초 방식 미확정'],
+        ['내재해/일반 조리개', `${clampCount.toLocaleString('ko-KR')} 개`, '교차점 x 1.08', '상세 체결 위치 필요'],
+        ['브레싱/버팀대', `${braceSet} set`, '길이/동수 기준', '전후면/모서리 보강 확인'],
+        ['MESH 제어모듈', `${q.mesh.totalModules} ea`, `제어 ${els.control.value}, 센서 ${els.sensor.value}, 배터리 ${els.sensor.value}`, '제품 구성 확정 필요']
+      ];
+      if (motorCount) bom.push(['권취/개폐 모터', `${motorCount} 대`, '측창 좌우 기준', '전압/토크 미확정']);
+      if (curtainM2) bom.push(['다겹보온커튼', `${Math.round(curtainM2).toLocaleString('ko-KR')} ㎡`, '온실 바닥면적 기준', '겹수/중량 미확정']);
+      if (screenM2) bom.push(['차광/스크린', `${Math.round(screenM2).toLocaleString('ko-KR')} ㎡`, '온실 바닥면적 기준', '차광율/구동방식 미확정']);
+      const assumptions = [
+        `서까래 간격은 '${q.selected.rafter_spec || '표준 미기재'}'에서 추출했고, 없으면 0.6m로 임의 적용했습니다.`,
+        `가로대/도리 줄 수는 '${q.selected.purlin_or_beam_spec || '표준 미기재'}'에서 추출했고, 없으면 시설 유형별 기본값을 임의 적용했습니다.`,
+        '세부 원가 배분율은 골조 42%, 피복 14%, 기초 18%, 부속 8%, 노무 18%로 임의 설정했습니다.',
+        '피복 면적은 바닥면적 x 1.42, 예비비는 7%로 임의 설정했습니다.',
+        '운반비, 폐기물, 토목, 전기 인입, 인허가, 부가세는 최종 견적에서 별도 확인해야 합니다.'
+      ];
+      return { rows, bom, subtotal, contingency, total, assumptions };
+    }
+    function renderDetailedTables() {
+      if (!document.querySelector('#detailDialog').open) return;
+      const q = estimate();
+      const detail = detailedEstimate(q);
+      const costRows = [
+        '<tr><th>항목</th><th>산출근거</th><th>금액</th><th>비고</th></tr>',
+        ...detail.rows.map(r => `<tr><td>${r.item}</td><td>${r.basis}</td><td>${won(r.amount)}</td><td>${r.note}</td></tr>`),
+        `<tr><th colspan="2">소계</th><td>${won(detail.subtotal)}</td><td>VAT 별도</td></tr>`,
+        `<tr><th colspan="2">예비비 7%</th><td>${won(detail.contingency)}</td><td>임의</td></tr>`,
+        `<tr><th colspan="2">상세견적 합계</th><td><strong>${won(detail.total)}</strong></td><td>초안</td></tr>`
+      ].join('');
+      const bomRows = [
+        '<tr><th>품목</th><th>수량</th><th>산출식</th><th>비고</th></tr>',
+        ...detail.bom.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`)
+      ].join('');
+      document.querySelector('#costBreakdownTable').innerHTML = costRows;
+      document.querySelector('#bomTable').innerHTML = bomRows;
+      document.querySelector('#assumptionList').innerHTML = detail.assumptions.map(a => `<li>${a}</li>`).join('');
+    }
     function updateUI() {
       const q = estimate();
       document.querySelector('#sceneTitle').textContent = `${facilityType.replace('형','')} ${els.width.value}m x ${els.length.value}m`;
@@ -561,7 +749,9 @@
         월구독: `${q.mesh.plan} ${won(q.mesh.monthly)}/월`
       });
       document.querySelector('#inquiryText').value = `견적 검토 요청: ${facilityType} ${els.width.value}m x ${els.length.value}m x ${els.span.value}동, ${els.crop.value}. 추천규격 ${q.selected.model_code}. 요청사항: ${els.options.value || '상담 후 확정'}`;
+      renderDetailedTables();
       document.querySelector('#detailDialog').showModal();
+      renderDetailedTables();
     }
     document.querySelector('#typeTabs').addEventListener('click', e => {
       const btn = e.target.closest('button');
@@ -578,6 +768,11 @@
     document.querySelector('#openDetailTop').addEventListener('click', openDetail);
     document.querySelector('#openDetailSide').addEventListener('click', openDetail);
     document.querySelector('#closeDetail').addEventListener('click', () => document.querySelector('#detailDialog').close());
+    ['#optAutoVent','#optCurtain','#optScreen','#optIrrigation','#optStructureFactor','#optInstallFactor'].forEach(id => {
+      document.querySelector(id)?.addEventListener('input', renderDetailedTables);
+      document.querySelector(id)?.addEventListener('change', renderDetailedTables);
+    });
+    document.querySelector('#printDetail').addEventListener('click', () => window.print());
 
     let scene, camera, renderer, group, fallback = false;
     function initScene() {

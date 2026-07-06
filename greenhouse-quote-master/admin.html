@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MESH 온실 견적 관리자</title>
+  <script src="./greenhouse-data.js"></script>
+  <style>
+    :root {
+      --bg: #f6f7f4;
+      --ink: #17211c;
+      --muted: #65726b;
+      --line: #d8ded8;
+      --panel: #fff;
+      --field: #eef3ef;
+      --green: #255f47;
+      --blue: #285b7a;
+      --amber: #9d6a1f;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); letter-spacing: 0; }
+    button, input, select, textarea { font: inherit; }
+    header {
+      height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(246,247,244,.95);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .brand { font-weight: 780; }
+    .actions { display: flex; gap: 8px; }
+    .btn {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--ink);
+      padding: 0 14px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn.primary { background: var(--green); border-color: var(--green); color: #fff; }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(340px, 430px) minmax(0, 1fr);
+      min-height: calc(100vh - 58px);
+    }
+    aside {
+      background: #fff;
+      border-right: 1px solid var(--line);
+      padding: 18px;
+      overflow: auto;
+      max-height: calc(100vh - 58px);
+    }
+    main { padding: 18px; min-width: 0; }
+    section {
+      border-bottom: 1px solid var(--line);
+      padding: 0 0 16px;
+      margin-bottom: 16px;
+    }
+    h1, h2, h3 { margin: 0 0 12px; line-height: 1.25; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 17px; }
+    h3 { font-size: 15px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+    label { font-size: 12px; color: var(--muted); }
+    input, select, textarea {
+      width: 100%;
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 8px 10px;
+      background: var(--field);
+      color: var(--ink);
+    }
+    textarea { min-height: 96px; resize: vertical; }
+    .check { min-height: 40px; border: 1px solid var(--line); border-radius: 7px; background: var(--field); padding: 8px 10px; display: flex; align-items: center; gap: 8px; font-size: 13px; }
+    .check input { width: auto; min-height: auto; }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .card .label { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .card .value { font-size: 22px; font-weight: 800; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; }
+    th, td { border-bottom: 1px solid var(--line); padding: 9px 8px; text-align: left; vertical-align: top; }
+    th { color: var(--muted); background: #f0f4ef; font-weight: 700; }
+    td.money, th.money { text-align: right; white-space: nowrap; }
+    .report { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
+    .notice { color: #684713; background: #fff8e7; border: 1px solid #dcc89f; border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 1.5; margin-bottom: 14px; }
+    .source { color: var(--muted); font-size: 12px; line-height: 1.55; margin-top: 14px; }
+    @media (max-width: 980px) {
+      .layout { display: block; }
+      aside { max-height: none; border-right: 0; border-bottom: 1px solid var(--line); }
+      .summary { grid-template-columns: 1fr 1fr; }
+    }
+    @media print {
+      header, aside, .screen-only { display: none !important; }
+      body { background: #fff; }
+      main { padding: 0; }
+      .report { border: 0; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">MESH 온실 견적 관리자</div>
+    <div class="actions">
+      <a class="btn" href="./index.html">고객 화면</a>
+      <button class="btn" id="copyText">텍스트 복사</button>
+      <button class="btn primary" id="printBtn">출력</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside>
+      <section>
+        <h2>현장 조건</h2>
+        <div class="field">
+          <label for="modelSelect">표준 모델</label>
+          <select id="modelSelect"></select>
+        </div>
+        <div class="grid">
+          <div class="field"><label for="width">폭 m</label><input id="width" type="number" step="0.1" value="7"></div>
+          <div class="field"><label for="length">길이 m</label><input id="length" type="number" step="1" value="97"></div>
+          <div class="field"><label for="side">측고 m</label><input id="side" type="number" step="0.1" value="1.4"></div>
+          <div class="field"><label for="span">동수/연동 수</label><input id="span" type="number" step="1" value="1"></div>
+        </div>
+        <div class="grid">
+          <label class="check"><input id="autoVent" type="checkbox" checked> 측창 자동개폐</label>
+          <label class="check"><input id="curtain" type="checkbox"> 다겹보온커튼</label>
+          <label class="check"><input id="screen" type="checkbox"> 차광/스크린</label>
+          <label class="check"><input id="irrigation" type="checkbox"> 관수/양액 연동</label>
+        </div>
+      </section>
+
+      <section>
+        <h2>단가/보정</h2>
+        <div class="grid">
+          <div class="field"><label for="pipeUnit">골조 파이프 원/m</label><input id="pipeUnit" type="number" value="4200"></div>
+          <div class="field"><label for="purlinUnit">가로대 원/m</label><input id="purlinUnit" type="number" value="3200"></div>
+          <div class="field"><label for="coverUnit">피복 원/㎡</label><input id="coverUnit" type="number" value="2800"></div>
+          <div class="field"><label for="clampUnit">조리개 원/개</label><input id="clampUnit" type="number" value="950"></div>
+          <div class="field"><label for="foundationUnit">기초/고정 원/m</label><input id="foundationUnit" type="number" value="9500"></div>
+          <div class="field"><label for="motorUnit">모터/축 원/대</label><input id="motorUnit" type="number" value="350000"></div>
+          <div class="field"><label for="curtainUnit">다겹커튼 원/㎡</label><input id="curtainUnit" type="number" value="22000"></div>
+          <div class="field"><label for="screenUnit">스크린 원/㎡</label><input id="screenUnit" type="number" value="12000"></div>
+          <div class="field"><label for="laborRate">노무/장비 %</label><input id="laborRate" type="number" value="22"></div>
+          <div class="field"><label for="marginRate">관리/마진 %</label><input id="marginRate" type="number" value="12"></div>
+          <div class="field"><label for="contingencyRate">예비비 %</label><input id="contingencyRate" type="number" value="7"></div>
+          <div class="field"><label for="vatRate">VAT %</label><input id="vatRate" type="number" value="10"></div>
+        </div>
+        <div class="field">
+          <label for="memo">고객 전달 메모</label>
+          <textarea id="memo">현장 실사 후 기초, 전기 인입, 커튼/스크린 세부 사양을 확정해야 합니다.</textarea>
+        </div>
+      </section>
+    </aside>
+
+    <main>
+      <div class="report" id="report">
+        <h1>온실 상세 원가계산서 / 물량내역서</h1>
+        <div class="notice">관리자용 초안입니다. 단가와 수량은 현장 실사 및 실제 도면 반영 전까지 임의 산출값입니다.</div>
+        <div class="summary">
+          <div class="card"><div class="label">표준 모델</div><div class="value" id="modelOut">-</div></div>
+          <div class="card"><div class="label">면적</div><div class="value" id="areaOut">-</div></div>
+          <div class="card"><div class="label">공급가</div><div class="value" id="supplyOut">-</div></div>
+          <div class="card"><div class="label">VAT 포함</div><div class="value" id="vatOut">-</div></div>
+        </div>
+        <h2>원가계산서</h2>
+        <table id="costTable"></table>
+        <h2>물량내역서</h2>
+        <table id="bomTable"></table>
+        <h2>가정 및 메모</h2>
+        <table id="assumptionTable"></table>
+        <div class="source">기준 데이터: 농사로 2026 시설규격, AKAF 2014 설계도, AKAF 2024 예정공사비, MESH 가격표 초안. 실제 고객 제출 전 관리자 검토 필요.</div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const data = window.GREENHOUSE_MASTER || [];
+    const $ = id => document.querySelector(id);
+    const fields = ['#modelSelect','#width','#length','#side','#span','#autoVent','#curtain','#screen','#irrigation','#pipeUnit','#purlinUnit','#coverUnit','#clampUnit','#foundationUnit','#motorUnit','#curtainUnit','#screenUnit','#laborRate','#marginRate','#contingencyRate','#vatRate','#memo'];
+    function num(id) { return Number(String($(id).value || '').replace(/[^\d.-]/g,'')) || 0; }
+    function won(v) {
+      if (!isFinite(v) || v <= 0) return '-';
+      return Math.round(v).toLocaleString('ko-KR') + '원';
+    }
+    function shortWon(v) {
+      if (!isFinite(v) || v <= 0) return '-';
+      if (v >= 100000000) return (v / 100000000).toFixed(1).replace('.0','') + '억원';
+      return Math.round(v / 10000).toLocaleString('ko-KR') + '만원';
+    }
+    function rangeMid(text) {
+      const nums = String(text || '').match(/\d+(?:\.\d+)?/g);
+      if (!nums) return 0;
+      return nums.map(Number).reduce((a,b)=>a+b,0) / nums.length;
+    }
+    function parseSpacingM(spec) {
+      const m = String(spec || '').match(/@(\d+(?:\.\d+)?)/);
+      if (!m) return 0.6;
+      const raw = Number(m[1]);
+      return raw > 5 ? raw / 100 : raw;
+    }
+    function parsePurlinRows(spec, type) {
+      const m = String(spec || '').match(/(\d+)\s*개/);
+      if (m) return Number(m[1]);
+      if (type === '연동형') return 9;
+      if (type === '광폭형') return 11;
+      return 7;
+    }
+    function selectedModel() {
+      return data.find(r => r.model_code === $('#modelSelect').value) || data[0] || {};
+    }
+    function calc() {
+      const model = selectedModel();
+      const width = num('#width'), length = num('#length'), side = num('#side'), span = Math.max(1, num('#span'));
+      const area = width * length * span;
+      const pyeong = area / 3.3058;
+      const spacing = parseSpacingM(model.rafter_spec);
+      const purlinRows = parsePurlinRows(model.purlin_or_beam_spec, model.facility_type);
+      const rafterCount = (Math.ceil(length / spacing) + 1) * span;
+      const archLength = width * 1.32 + side * 2;
+      const rafterM = rafterCount * archLength;
+      const purlinM = purlinRows * length * span;
+      const coverM2 = area * 1.42;
+      const foundationM = model.facility_type === '연동형' ? length * (span + 1) : length * span * 2;
+      const clampCount = Math.round(rafterCount * purlinRows * 1.08);
+      const braceSet = Math.max(4, Math.ceil(span * length / 28));
+      const motorCount = $('#autoVent').checked ? Math.max(2, span * 2) : 0;
+      const curtainM2 = $('#curtain').checked ? area : 0;
+      const screenM2 = $('#screen').checked ? area : 0;
+      const bom = [
+        ['서까래 파이프', 'm', Math.round(rafterM), num('#pipeUnit'), '서까래 수 x 아치 길이'],
+        ['가로대/도리 파이프', 'm', Math.round(purlinM), num('#purlinUnit'), `${purlinRows}줄 x 길이`],
+        ['피복비닐/마감재', '㎡', Math.round(coverM2), num('#coverUnit'), '바닥면적 x 1.42'],
+        ['기초/고정', 'm', Math.round(foundationM), num('#foundationUnit'), '기초 방식 미확정'],
+        ['내재해/일반 조리개', '개', clampCount, num('#clampUnit'), '교차점 추정'],
+        ['브레싱/버팀대', 'set', braceSet, 85000, '길이/동수 기준'],
+      ];
+      if (motorCount) bom.push(['권취/개폐 모터', '대', motorCount, num('#motorUnit'), '측창 좌우 기준']);
+      if (curtainM2) bom.push(['다겹보온커튼', '㎡', Math.round(curtainM2), num('#curtainUnit'), '원단/구동부 포함 임의']);
+      if (screenM2) bom.push(['차광/스크린', '㎡', Math.round(screenM2), num('#screenUnit'), '차광율 미확정']);
+      if ($('#irrigation').checked) bom.push(['관수/양액 제어 연동', '식', 1, 1800000, '기존 장비 연동 여부 미확정']);
+      const material = bom.reduce((s, r) => s + r[2] * r[3], 0);
+      const labor = material * num('#laborRate') / 100;
+      const mesh = (Number(model.mesh_hw_subtotal_krw_ex_vat) || 0);
+      const marginBase = material + labor + mesh;
+      const margin = marginBase * num('#marginRate') / 100;
+      const contingency = marginBase * num('#contingencyRate') / 100;
+      const supply = marginBase + margin + contingency;
+      const vat = supply * num('#vatRate') / 100;
+      return { model, width, length, side, span, area, pyeong, spacing, purlinRows, bom, material, labor, mesh, margin, contingency, supply, vat };
+    }
+    function render() {
+      const c = calc();
+      $('#modelOut').textContent = c.model.model_code || '-';
+      $('#areaOut').textContent = `${Math.round(c.area).toLocaleString('ko-KR')}㎡ / ${Math.round(c.pyeong).toLocaleString('ko-KR')}평`;
+      $('#supplyOut').textContent = shortWon(c.supply);
+      $('#vatOut').textContent = shortWon(c.supply + c.vat);
+      const costRows = [
+        ['직접재료비', '물량 x 관리자 단가', c.material],
+        ['시공 노무/장비', `${num('#laborRate')}%`, c.labor],
+        ['MESH 환경제어 HW', c.model.mesh_template_case ? `템플릿 ${c.model.mesh_template_case}` : '선택 시 조정', c.mesh],
+        ['일반관리/마진', `${num('#marginRate')}%`, c.margin],
+        ['예비비', `${num('#contingencyRate')}%`, c.contingency],
+        ['공급가 합계', 'VAT 별도', c.supply],
+        ['부가세', `${num('#vatRate')}%`, c.vat],
+        ['총액', 'VAT 포함', c.supply + c.vat],
+      ];
+      $('#costTable').innerHTML = '<tr><th>구분</th><th>산출근거</th><th class="money">금액</th></tr>' +
+        costRows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td class="money">${won(r[2])}</td></tr>`).join('');
+      $('#bomTable').innerHTML = '<tr><th>품목</th><th>단위</th><th class="money">수량</th><th class="money">단가</th><th class="money">금액</th><th>비고</th></tr>' +
+        c.bom.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td class="money">${r[2].toLocaleString('ko-KR')}</td><td class="money">${won(r[3])}</td><td class="money">${won(r[2] * r[3])}</td><td>${r[4]}</td></tr>`).join('');
+      const assumptions = [
+        ['표준 모델', `${c.model.model_code || '-'} / ${c.model.facility_type || '-'}`],
+        ['내재해 기준', `적설 ${c.model.snow_depth_range_cm || '-'}, 풍속 ${c.model.wind_speed_range_m_s || '-'}`],
+        ['서까래 간격', `${c.spacing.toFixed(2)}m, 표준 미기재 시 임의 0.6m`],
+        ['가로대 줄 수', `${c.purlinRows}줄, 표준 미기재 시 유형별 임의값`],
+        ['관리자 메모', $('#memo').value || '-'],
+      ];
+      $('#assumptionTable').innerHTML = assumptions.map(r => `<tr><th>${r[0]}</th><td>${r[1]}</td></tr>`).join('');
+    }
+    function populateModels() {
+      const useful = data.filter(r => ['단동형','연동형','광폭형','자동화온실','과수형'].includes(r.facility_type));
+      $('#modelSelect').innerHTML = useful.map(r => `<option value="${r.model_code}">${r.model_code} · ${r.facility_type} · ${r.width_range_m || '-'}</option>`).join('');
+      const preferred = useful.find(r => r.model_code === '07-단동-3') || useful[0];
+      if (preferred) {
+        $('#modelSelect').value = preferred.model_code;
+        $('#width').value = rangeMid(preferred.width_range_m) || 7;
+        $('#side').value = rangeMid(preferred.side_height_range_m) || 1.4;
+      }
+    }
+    function copyReport() {
+      const c = calc();
+      const lines = [
+        `온실 상세견적 초안`,
+        `표준모델: ${c.model.model_code}`,
+        `면적: ${Math.round(c.area).toLocaleString('ko-KR')}㎡`,
+        `공급가: ${won(c.supply)}`,
+        `VAT 포함: ${won(c.supply + c.vat)}`,
+        '',
+        '물량내역:',
+        ...c.bom.map(r => `- ${r[0]}: ${r[2].toLocaleString('ko-KR')}${r[1]} x ${won(r[3])} = ${won(r[2] * r[3])}`)
+      ];
+      navigator.clipboard?.writeText(lines.join('\n'));
+    }
+    populateModels();
+    fields.forEach(id => {
+      $(id)?.addEventListener('input', render);
+      $(id)?.addEventListener('change', render);
+    });
+    $('#printBtn').addEventListener('click', () => window.print());
+    $('#copyText').addEventListener('click', copyReport);
+    render();
+  </script>
+</body>
+</html>
