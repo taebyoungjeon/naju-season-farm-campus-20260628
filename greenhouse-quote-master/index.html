@@ -521,11 +521,13 @@
         </div>
         <div class="wizard-step" data-step="9">
           <h3>추가 요청</h3>
-          <p class="wizard-help">다겹보온커튼, 측창 자동개폐, 양액기 연동 같은 요청을 적습니다.</p>
-        <div class="field">
-          <label for="optionsInput">추가 요청</label>
-          <textarea id="optionsInput" placeholder="예: 다겹보온커튼, 측창 자동개폐, MESH 환경제어, 양액기 연동"></textarea>
-        </div>
+          <p class="wizard-help">필요한 추가 사양을 선택합니다. 선택값은 상세내역의 물량과 금액에 반영됩니다.</p>
+          <div class="option-grid request-options">
+            <label class="check-row"><input type="checkbox" id="reqAutoVent" checked> 측창 자동개폐</label>
+            <label class="check-row"><input type="checkbox" id="reqCurtain"> 다겹보온커튼</label>
+            <label class="check-row"><input type="checkbox" id="reqScreen"> 차광/스크린</label>
+            <label class="check-row"><input type="checkbox" id="reqIrrigation"> 관수/양액 연동</label>
+          </div>
         </div>
         <div class="step-nav">
           <button class="ghost-btn" id="prevStep" type="button">이전</button>
@@ -657,7 +659,6 @@
       wind: document.querySelector('#windInput'),
       crop: document.querySelector('#cropInput'),
       coverFilm: document.querySelector('#coverFilmSelect'),
-      options: document.querySelector('#optionsInput'),
       control: document.querySelector('#controlInput'),
       sensor: document.querySelector('#sensorInput'),
       hub: document.querySelector('#hubSelect')
@@ -689,7 +690,7 @@
       if (step === 6) return els.crop.value;
       if (step === 7) return els.coverFilm.value;
       if (step === 8) return `${els.control.value}ch / 센서 ${els.sensor.value}점`;
-      if (step === 9) return els.options.value || '상담 후 확정';
+      if (step === 9) return requestLabels().join(', ') || '추가 선택 없음';
       return '-';
     }
     function stepLabel(step) {
@@ -898,6 +899,28 @@
       if (type === '광폭형') return 11;
       return 7;
     }
+    function requestLabels() {
+      const requests = [
+        ['#reqAutoVent', '측창 자동개폐'],
+        ['#reqCurtain', '다겹보온커튼'],
+        ['#reqScreen', '차광/스크린'],
+        ['#reqIrrigation', '관수/양액 연동']
+      ];
+      return requests.filter(([id]) => document.querySelector(id)?.checked).map(([, label]) => label);
+    }
+    function syncRequestOptionsToDetail() {
+      const pairs = [
+        ['#reqAutoVent', '#optAutoVent'],
+        ['#reqCurtain', '#optCurtain'],
+        ['#reqScreen', '#optScreen'],
+        ['#reqIrrigation', '#optIrrigation']
+      ];
+      pairs.forEach(([source, target]) => {
+        const sourceEl = document.querySelector(source);
+        const targetEl = document.querySelector(target);
+        if (sourceEl && targetEl) targetEl.checked = sourceEl.checked;
+      });
+    }
     function readDetailOptions() {
       const byId = id => document.querySelector(id);
       return {
@@ -1057,7 +1080,9 @@
         초기투자: `${won(q.initialMin)}~${won(q.initialMax)}`,
         월구독: `${q.mesh.plan} ${won(q.mesh.monthly)}/월`
       });
-      document.querySelector('#inquiryText').value = `견적 검토 요청: ${facilityType} ${els.width.value}m x ${els.length.value}m x ${els.span.value}동, ${els.crop.value}. 피복 ${q.coverFilm.name}. 추천규격 ${q.selected.model_code}. 요청사항: ${els.options.value || '상담 후 확정'}`;
+      syncRequestOptionsToDetail();
+      const requests = requestLabels().join(', ') || '추가 선택 없음';
+      document.querySelector('#inquiryText').value = `견적 검토 요청: ${facilityType} ${els.width.value}m x ${els.length.value}m x ${els.span.value}동, ${els.crop.value}. 피복 ${q.coverFilm.name}. 추천규격 ${q.selected.model_code}. 추가 요청: ${requests}`;
       renderDetailedTables();
       document.querySelector('#detailDialog').showModal();
       renderDetailedTables();
@@ -1075,9 +1100,12 @@
       updateWizard();
       updateUI();
     });
-    Object.values(els).forEach(el => {
+    Object.values(els).filter(Boolean).forEach(el => {
       el.addEventListener('input', () => { updateUI(); updateWizard(); });
       el.addEventListener('change', () => { updateUI(); updateWizard(); });
+    });
+    ['#reqAutoVent','#reqCurtain','#reqScreen','#reqIrrigation'].forEach(id => {
+      document.querySelector(id)?.addEventListener('change', () => { updateWizard(); });
     });
     document.querySelector('#resetBtn').addEventListener('click', () => location.reload());
     document.querySelector('#openDetailTop').addEventListener('click', openDetail);
