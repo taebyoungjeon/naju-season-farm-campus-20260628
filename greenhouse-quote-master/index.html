@@ -42,8 +42,9 @@
       border-bottom: 1px solid var(--line);
       backdrop-filter: blur(10px);
     }
-    .brand { font-weight: 760; }
-    .top-actions { display: flex; gap: 8px; align-items: center; }
+    .brand { font-weight: 760; min-width: 0; }
+    .top-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+    .top-actions .ghost-btn, .top-actions .primary-btn { white-space: nowrap; }
     .ghost-btn, .primary-btn, .icon-btn, .link-btn {
       border: 1px solid var(--line);
       background: #fff;
@@ -58,6 +59,10 @@
       justify-content: center;
     }
     .primary-btn { background: var(--green); border-color: var(--green); color: #fff; }
+    button:disabled, .primary-btn:disabled, .ghost-btn:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
     .icon-btn { width: 38px; padding: 0; display: grid; place-items: center; }
     .layout {
       min-height: calc(100vh - 58px);
@@ -136,7 +141,7 @@
     textarea { min-height: 78px; resize: vertical; }
     .segmented {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 6px;
       margin-bottom: 12px;
     }
@@ -148,6 +153,63 @@
       cursor: pointer;
     }
     .segmented button.active { background: #e1efe5; border-color: var(--green-2); color: #174b34; font-weight: 700; }
+    .wizard-progress {
+      display: grid;
+      grid-template-columns: repeat(9, 1fr);
+      gap: 4px;
+      margin: 0 0 14px;
+    }
+    .wizard-progress i {
+      display: block;
+      height: 4px;
+      border-radius: 999px;
+      background: #e5ebe6;
+    }
+    .wizard-progress i.done { background: var(--green-2); }
+    .wizard-step { display: none; }
+    .wizard-step.active, .wizard-complete .wizard-step { display: block; }
+    .wizard-step h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+    .wizard-help {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .step-nav {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .wizard-complete .step-nav { display: none; }
+    .review-panel {
+      display: none;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f9fbf8;
+      padding: 12px;
+      margin-top: 14px;
+    }
+    .wizard-complete .review-panel { display: block; }
+    .review-panel h3 { margin: 0 0 8px; font-size: 15px; }
+    .review-items { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+    .review-items button {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      padding: 9px 10px;
+      text-align: left;
+      cursor: pointer;
+      color: var(--ink);
+    }
+    .review-items span { color: var(--muted); }
     .metric-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(120px, 1fr));
@@ -312,6 +374,9 @@
     }
     @media (max-width: 760px) {
       .topbar { padding: 0 14px; }
+      .brand { max-width: 150px; line-height: 1.18; }
+      .top-actions { gap: 6px; }
+      .top-actions .ghost-btn, .top-actions .primary-btn { min-width: 54px; padding: 0 9px; }
       .layout { display: block; }
       aside { max-height: none; border-right: 0; border-bottom: 1px solid var(--line); }
       main { display: block; }
@@ -345,30 +410,53 @@
 
   <div class="layout">
     <aside>
-      <section class="section">
+      <section class="section wizard" id="quoteWizard">
         <h2>견적 조건</h2>
+        <div class="wizard-progress" id="wizardProgress" aria-hidden="true"></div>
+        <div class="wizard-step active" data-step="0">
+          <h3>시설 형태</h3>
+          <p class="wizard-help">먼저 단동형인지 연동형인지 선택합니다. 선택하면 3D 화면이 바로 바뀌고 다음 단계로 이동합니다.</p>
         <div class="segmented" id="typeTabs">
           <button data-type="단동형" class="active">단동</button>
           <button data-type="연동형">연동</button>
-          <button data-type="광폭형">광폭</button>
+          </div>
         </div>
-        <div class="field-grid">
+        <div class="wizard-step" data-step="1">
+          <h3>시설 폭</h3>
+          <p class="wizard-help">한 동의 폭을 입력합니다. 연동형은 한 스팬 폭 기준입니다.</p>
           <div class="field">
             <label for="widthInput">시설 폭 m</label>
             <input id="widthInput" type="number" min="3" max="30" step="0.1" value="7">
           </div>
+        </div>
+        <div class="wizard-step" data-step="2">
+          <h3>시설 길이</h3>
+          <p class="wizard-help">실제 시공하려는 온실의 길이를 입력합니다.</p>
           <div class="field">
             <label for="lengthInput">시설 길이 m</label>
             <input id="lengthInput" type="number" min="10" max="200" step="1" value="97">
           </div>
+        </div>
+        <div class="wizard-step" data-step="3">
+          <h3>측고</h3>
+          <p class="wizard-help">측고가 높아지면 골조, 피복, 브레싱, 시공비가 함께 증가합니다.</p>
           <div class="field">
             <label for="sideInput">측고 m</label>
             <input id="sideInput" type="number" min="0.8" max="7" step="0.1" value="1.4">
           </div>
+        </div>
+        <div class="wizard-step" data-step="4">
+          <h3>동수/연동 수</h3>
+          <p class="wizard-help">단동은 동수, 연동은 스팬 수 기준입니다.</p>
           <div class="field">
             <label for="spanInput">동수/연동 수</label>
             <input id="spanInput" type="number" min="1" max="12" step="1" value="1">
           </div>
+        </div>
+        <div class="wizard-step" data-step="5">
+          <h3>내재해 기준</h3>
+          <p class="wizard-help">요구 적설심과 풍속을 넣으면 가까운 표준 규격을 다시 찾습니다.</p>
+          <div class="field-grid">
           <div class="field">
             <label for="snowInput">요구 적설심 cm</label>
             <input id="snowInput" type="number" min="20" max="80" step="1" value="35">
@@ -378,6 +466,10 @@
             <input id="windInput" type="number" min="20" max="50" step="1" value="30">
           </div>
         </div>
+        </div>
+        <div class="wizard-step" data-step="6">
+          <h3>작목/용도</h3>
+          <p class="wizard-help">작목은 이후 커튼, 스크린, 관수 옵션 추천 기준으로 사용합니다.</p>
         <div class="field">
           <label for="cropInput">작목/용도</label>
           <select id="cropInput">
@@ -390,30 +482,45 @@
             <option>기타</option>
           </select>
         </div>
+        </div>
+        <div class="wizard-step" data-step="7">
+          <h3>MESH 환경제어</h3>
+          <p class="wizard-help">제어 채널과 센서 포인트를 입력하면 환경제어 HW와 구독료가 산출됩니다.</p>
+          <div class="field-grid">
+            <div class="field">
+              <label for="controlInput">제어 채널</label>
+              <input id="controlInput" type="number" min="0" max="80" value="6">
+            </div>
+            <div class="field">
+              <label for="sensorInput">센서 포인트</label>
+              <input id="sensorInput" type="number" min="0" max="40" value="1">
+            </div>
+          </div>
+          <div class="field">
+            <label for="hubSelect">허브 선택</label>
+            <select id="hubSelect">
+              <option value="auto">자동 추천</option>
+              <option value="basic">Basic Hub</option>
+              <option value="ai">AI Hub</option>
+            </select>
+          </div>
+        </div>
+        <div class="wizard-step" data-step="8">
+          <h3>추가 요청</h3>
+          <p class="wizard-help">다겹보온커튼, 측창 자동개폐, 양액기 연동 같은 요청을 적습니다.</p>
         <div class="field">
           <label for="optionsInput">추가 요청</label>
           <textarea id="optionsInput" placeholder="예: 다겹보온커튼, 측창 자동개폐, MESH 환경제어, 양액기 연동"></textarea>
         </div>
-      </section>
-      <section class="section">
-        <h3>MESH 환경제어</h3>
-        <div class="field-grid">
-          <div class="field">
-            <label for="controlInput">제어 채널</label>
-            <input id="controlInput" type="number" min="0" max="80" value="6">
-          </div>
-          <div class="field">
-            <label for="sensorInput">센서 포인트</label>
-            <input id="sensorInput" type="number" min="0" max="40" value="1">
-          </div>
         </div>
-        <div class="field">
-          <label for="hubSelect">허브 선택</label>
-          <select id="hubSelect">
-            <option value="auto">자동 추천</option>
-            <option value="basic">Basic Hub</option>
-            <option value="ai">AI Hub</option>
-          </select>
+        <div class="step-nav">
+          <button class="ghost-btn" id="prevStep" type="button">이전</button>
+          <button class="primary-btn" id="nextStep" type="button">다음</button>
+        </div>
+        <div class="review-panel">
+          <h3>선택 조건</h3>
+          <div class="review-items" id="reviewItems"></div>
+          <button class="ghost-btn" id="collapseWizard" type="button" style="width:100%;margin-top:10px">단계별로 다시 보기</button>
         </div>
       </section>
     </aside>
@@ -542,6 +649,9 @@
     };
     let facilityType = '단동형';
     let selected = null;
+    let wizardStep = 0;
+    let wizardComplete = false;
+    const wizardMaxStep = 8;
 
     function n(v) { return Number(String(v || '').replace(/[^\d.-]/g, '')) || 0; }
     function won(v) {
@@ -549,6 +659,48 @@
       if (v >= 100000000) return (v / 100000000).toFixed(1).replace('.0','') + '억원';
       if (v >= 10000) return Math.round(v / 10000).toLocaleString('ko-KR') + '만원';
       return Math.round(v).toLocaleString('ko-KR') + '원';
+    }
+    function stepValue(step) {
+      if (step === 0) return facilityType.replace('형','');
+      if (step === 1) return `${els.width.value}m`;
+      if (step === 2) return `${els.length.value}m`;
+      if (step === 3) return `${els.side.value}m`;
+      if (step === 4) return `${els.span.value}`;
+      if (step === 5) return `적설 ${els.snow.value}cm / 풍속 ${els.wind.value}m/s`;
+      if (step === 6) return els.crop.value;
+      if (step === 7) return `${els.control.value}ch / 센서 ${els.sensor.value}점`;
+      if (step === 8) return els.options.value || '상담 후 확정';
+      return '-';
+    }
+    function stepLabel(step) {
+      return ['시설 형태','시설 폭','시설 길이','측고','동수/연동 수','내재해 기준','작목/용도','MESH 환경제어','추가 요청'][step] || '-';
+    }
+    function currentStepValid() {
+      if (wizardStep === 1) return n(els.width.value) >= 3;
+      if (wizardStep === 2) return n(els.length.value) >= 10;
+      if (wizardStep === 3) return n(els.side.value) >= 0.8;
+      if (wizardStep === 4) return n(els.span.value) >= 1;
+      if (wizardStep === 5) return n(els.snow.value) >= 20 && n(els.wind.value) >= 20;
+      if (wizardStep === 7) return n(els.control.value) >= 0 && n(els.sensor.value) >= 0;
+      return true;
+    }
+    function updateWizard() {
+      const wizard = document.querySelector('#quoteWizard');
+      if (!wizard) return;
+      wizard.classList.toggle('wizard-complete', wizardComplete);
+      document.querySelectorAll('.wizard-step').forEach(step => {
+        step.classList.toggle('active', Number(step.dataset.step) === wizardStep);
+      });
+      document.querySelector('#wizardProgress').innerHTML = Array.from({ length: wizardMaxStep + 1 }, (_, i) => `<i class="${i <= wizardStep || wizardComplete ? 'done' : ''}"></i>`).join('');
+      document.querySelector('#prevStep').disabled = wizardStep === 0;
+      document.querySelector('#nextStep').disabled = !currentStepValid();
+      document.querySelector('#nextStep').textContent = wizardStep === wizardMaxStep ? '견적 확인' : '다음';
+      document.querySelector('#openDetailTop').disabled = !wizardComplete;
+      document.querySelector('#openDetailSide').disabled = !wizardComplete;
+      const reviewRows = Array.from({ length: wizardMaxStep + 1 }, (_, i) => `
+        <button type="button" data-jump="${i}"><b>${stepLabel(i)}</b><span>${stepValue(i)}</span></button>
+      `).join('');
+      document.querySelector('#reviewItems').innerHTML = reviewRows;
     }
     function rangeMid(text) {
       const nums = String(text || '').match(/\d+(?:\.\d+)?/g);
@@ -834,6 +986,11 @@
       `).join('');
     }
     function openDetail() {
+      if (!wizardComplete) {
+        wizardStep = Math.min(wizardStep + 1, wizardMaxStep);
+        updateWizard();
+        return;
+      }
       const q = estimate();
       document.querySelector('#inputTable').innerHTML = tableRows({
         시설형태: facilityType,
@@ -866,13 +1023,45 @@
       if (facilityType === '연동형') { els.width.value = 7; els.span.value = 3; els.side.value = 2.8; els.control.value = 14; els.sensor.value = 2; }
       if (facilityType === '광폭형') { els.width.value = 14.8; els.span.value = 1; els.side.value = 2.2; els.control.value = 14; els.sensor.value = 2; }
       if (facilityType === '단동형') { els.width.value = 7; els.span.value = 1; els.side.value = 1.4; els.control.value = 6; els.sensor.value = 1; }
+      wizardComplete = false;
+      wizardStep = 1;
+      updateWizard();
       updateUI();
     });
-    Object.values(els).forEach(el => el.addEventListener('input', updateUI));
+    Object.values(els).forEach(el => {
+      el.addEventListener('input', () => { updateUI(); updateWizard(); });
+      el.addEventListener('change', () => { updateUI(); updateWizard(); });
+    });
     document.querySelector('#resetBtn').addEventListener('click', () => location.reload());
     document.querySelector('#openDetailTop').addEventListener('click', openDetail);
     document.querySelector('#openDetailSide').addEventListener('click', openDetail);
     document.querySelector('#closeDetail').addEventListener('click', () => document.querySelector('#detailDialog').close());
+    document.querySelector('#prevStep').addEventListener('click', () => {
+      wizardComplete = false;
+      wizardStep = Math.max(0, wizardStep - 1);
+      updateWizard();
+    });
+    document.querySelector('#nextStep').addEventListener('click', () => {
+      if (!currentStepValid()) return;
+      if (wizardStep >= wizardMaxStep) {
+        wizardComplete = true;
+      } else {
+        wizardStep += 1;
+      }
+      updateWizard();
+      updateUI();
+    });
+    document.querySelector('#reviewItems').addEventListener('click', e => {
+      const btn = e.target.closest('button[data-jump]');
+      if (!btn) return;
+      wizardComplete = false;
+      wizardStep = Number(btn.dataset.jump);
+      updateWizard();
+    });
+    document.querySelector('#collapseWizard').addEventListener('click', () => {
+      wizardComplete = false;
+      updateWizard();
+    });
     ['#optAutoVent','#optCurtain','#optScreen','#optIrrigation','#optStructureFactor','#optInstallFactor'].forEach(id => {
       document.querySelector(id)?.addEventListener('input', renderDetailedTables);
       document.querySelector(id)?.addEventListener('change', renderDetailedTables);
@@ -989,6 +1178,7 @@
     renderGlossary();
     initScene();
     updateUI();
+    updateWizard();
     animate();
   </script>
 </body>
