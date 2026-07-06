@@ -133,6 +133,39 @@
       aside { max-height: none; border-right: 0; border-bottom: 1px solid var(--line); }
       .summary { grid-template-columns: 1fr 1fr; }
       .drawing-grid { grid-template-columns: 1fr; }
+      .report { padding: 14px; }
+      #costTable, #costTable tbody, #costTable tr, #costTable td, #costTable th,
+      #bomTable, #bomTable tbody, #bomTable tr, #bomTable td, #bomTable th {
+        display: block;
+        width: 100%;
+      }
+      #costTable tr:first-child, #bomTable tr:first-child { display: none; }
+      #costTable tr, #bomTable tr {
+        border-bottom: 1px solid var(--line);
+        padding: 10px 0;
+      }
+      #costTable td, #bomTable td {
+        border-bottom: 0;
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 4px 0;
+        text-align: right;
+        white-space: normal;
+        word-break: keep-all;
+        overflow-wrap: anywhere;
+      }
+      #costTable td::before, #bomTable td::before {
+        content: attr(data-label);
+        flex: 0 0 82px;
+        color: var(--muted);
+        font-weight: 700;
+        text-align: left;
+      }
+      #costTable td:first-child, #bomTable td:first-child {
+        font-weight: 760;
+        text-align: left;
+      }
     }
     @media print {
       header, aside, .screen-only { display: none !important; }
@@ -397,10 +430,10 @@
         ['총액', 'VAT 포함', c.supply + c.vat],
       ];
       $('#costTable').innerHTML = '<tr><th>구분</th><th>산출근거</th><th class="money">금액</th></tr>' +
-        costRows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td class="money">${won(r[2])}</td></tr>`).join('');
+        costRows.map(r => `<tr><td data-label="구분">${r[0]}</td><td data-label="산출근거">${r[1]}</td><td class="money" data-label="금액">${won(r[2])}</td></tr>`).join('');
       $('#drawingPreview').innerHTML = drawingCards(c);
-      $('#bomTable').innerHTML = '<tr><th>품목</th><th>단위</th><th class="money">수량</th><th class="money">단가</th><th class="money">금액</th><th>비고</th></tr>' +
-        c.bom.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td class="money">${r[2].toLocaleString('ko-KR')}</td><td class="money">${won(r[3])}</td><td class="money">${won(r[2] * r[3])}</td><td>${r[4]}</td></tr>`).join('');
+      $('#bomTable').innerHTML = '<tr><th>품목</th><th>단위</th><th class="money">수량</th><th class="money">단가</th><th class="money">금액</th></tr>' +
+        c.bom.map(r => `<tr><td data-label="품목">${r[0]}</td><td data-label="단위">${r[1]}</td><td class="money" data-label="수량">${r[2].toLocaleString('ko-KR')}</td><td class="money" data-label="단가">${won(r[3])}</td><td class="money" data-label="금액">${won(r[2] * r[3])}</td></tr>`).join('');
       const assumptions = [
         ['표준 모델', `${c.model.model_code || '-'} / ${c.model.facility_type || '-'}`],
         ['내재해 기준', `적설 ${c.model.snow_depth_range_cm || '-'}, 풍속 ${c.model.wind_speed_range_m_s || '-'}`],

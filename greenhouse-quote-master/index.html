@@ -388,6 +388,42 @@
       .metric-grid { grid-template-columns: 1fr 1fr; }
       .field-grid, .detail-grid, .option-grid, .drawing-grid { grid-template-columns: 1fr; }
       .scene-overlay h1 { font-size: 34px; }
+      dialog { width: calc(100vw - 24px); }
+      .modal-body { padding: 14px; max-height: calc(100dvh - 112px); }
+      #costBreakdownTable, #costBreakdownTable tbody, #costBreakdownTable tr,
+      #costBreakdownTable td, #costBreakdownTable th,
+      #bomTable, #bomTable tbody, #bomTable tr, #bomTable td, #bomTable th {
+        display: block;
+        width: 100%;
+      }
+      #costBreakdownTable tr:first-child, #bomTable tr:first-child { display: none; }
+      #costBreakdownTable tr, #bomTable tr {
+        border-bottom: 1px solid var(--line);
+        padding: 10px 0;
+      }
+      #costBreakdownTable td, #bomTable td {
+        border-bottom: 0;
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 4px 0;
+        text-align: right;
+        white-space: normal;
+        word-break: keep-all;
+        overflow-wrap: anywhere;
+      }
+      #costBreakdownTable td::before, #bomTable td::before {
+        content: attr(data-label);
+        flex: 0 0 82px;
+        color: var(--muted);
+        font-weight: 650;
+        text-align: left;
+      }
+      #costBreakdownTable td:first-child, #bomTable td:first-child {
+        font-weight: 750;
+        text-align: left;
+      }
+      #costBreakdownTable td:first-child::before, #bomTable td:first-child::before { font-weight: 650; }
     }
     @media print {
       .topbar, .layout, .modal-head .icon-btn, .estimate-actions { display: none !important; }
@@ -1048,14 +1084,14 @@
       const detail = detailedEstimate(q);
       const costRows = [
         '<tr><th>항목</th><th>산출근거</th><th>금액</th></tr>',
-        ...detail.rows.map(r => `<tr><td>${r.item}</td><td>${r.basis}</td><td>${won(r.amount)}</td></tr>`),
-        `<tr><th colspan="2">소계</th><td>${won(detail.subtotal)}</td></tr>`,
-        `<tr><th colspan="2">예비비 7%</th><td>${won(detail.contingency)}</td></tr>`,
-        `<tr><th colspan="2">상세견적 합계</th><td><strong>${won(detail.total)}</strong></td></tr>`
+        ...detail.rows.map(r => `<tr><td data-label="항목">${r.item}</td><td data-label="산출근거">${r.basis}</td><td data-label="금액">${won(r.amount)}</td></tr>`),
+        `<tr><td data-label="항목">소계</td><td data-label="산출근거">상세 원가 항목 합산</td><td data-label="금액">${won(detail.subtotal)}</td></tr>`,
+        `<tr><td data-label="항목">예비비</td><td data-label="산출근거">7%</td><td data-label="금액">${won(detail.contingency)}</td></tr>`,
+        `<tr><td data-label="항목">상세견적 합계</td><td data-label="산출근거">초안 기준</td><td data-label="금액"><strong>${won(detail.total)}</strong></td></tr>`
       ].join('');
       const bomRows = [
         '<tr><th>품목</th><th>단위</th><th class="num">수량</th><th class="money">단가</th><th class="money">금액</th></tr>',
-        ...detail.bom.map(r => `<tr><td>${r.item}</td><td>${r.unit}</td><td class="num">${r.qty.toLocaleString('ko-KR')}</td><td class="money">${exactWon(r.unitPrice)}</td><td class="money">${exactWon(r.qty * r.unitPrice)}</td></tr>`)
+        ...detail.bom.map(r => `<tr><td data-label="품목">${r.item}</td><td data-label="단위">${r.unit}</td><td class="num" data-label="수량">${r.qty.toLocaleString('ko-KR')}</td><td class="money" data-label="단가">${exactWon(r.unitPrice)}</td><td class="money" data-label="금액">${exactWon(r.qty * r.unitPrice)}</td></tr>`)
       ].join('');
       document.querySelector('#costBreakdownTable').innerHTML = costRows;
       document.querySelector('#bomTable').innerHTML = bomRows;
