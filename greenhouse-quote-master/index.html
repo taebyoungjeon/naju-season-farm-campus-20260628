@@ -546,7 +546,7 @@
         </div>
       </section>
       <section class="metric-grid">
-        <div class="metric"><div class="label">추천 표준규격</div><div class="value" id="modelMetric">-</div><div class="sub" id="modelSub">농사로 2026 + AKAF</div></div>
+        <div class="metric"><div class="label">추천 표준규격</div><div class="value" id="modelMetric">-</div><div class="sub" id="modelSub">공개 표준규격 + 설계자료 기준</div></div>
         <div class="metric"><div class="label">예상 면적</div><div class="value" id="areaMetric">-</div><div class="sub">폭 x 길이 x 동수</div></div>
         <div class="metric"><div class="label">초기 투자 범위</div><div class="value" id="totalMetric">-</div><div class="sub">VAT 별도, 참고가</div></div>
         <div class="metric"><div class="label">월 구독</div><div class="value" id="subMetric">-</div><div class="sub">MESH 선택 시</div></div>
@@ -916,11 +916,11 @@
       const structureBase = structureBeforeCover * (1 + opts.structureFactor / 100);
       const installBase = ((q.installMin + q.installMax) / 2) * (1 + opts.installFactor / 100);
       const rows = [
-        { item: '골조 파이프/주요 구조재', basis: `AKAF 구조비 42%, 측고보정 x${q.heightAdj.costFactor.toFixed(2)}`, amount: structureBase * 0.42, note: '표준 예정공사비 배분' },
+        { item: '골조 파이프/주요 구조재', basis: `표준 구조비 42%, 측고보정 x${q.heightAdj.costFactor.toFixed(2)}`, amount: structureBase * 0.42, note: '표준 예정공사비 배분' },
         { item: '피복/마감재', basis: `${q.coverFilm.name} · 피복 ${Math.round(coverM2).toLocaleString('ko-KR')}㎡`, amount: structureBase * 0.14 * q.coverFilm.factor, note: q.coverFilm.note },
-        { item: '기초/고정', basis: 'AKAF 구조비 18%', amount: structureBase * 0.18, note: '기초 방식 미확정' },
-        { item: '체결부속/조리개', basis: 'AKAF 구조비 8%', amount: structureBase * 0.08, note: '교차점 기준 임의 추정' },
-        { item: '시공 노무/장비', basis: 'AKAF 구조비 18%', amount: structureBase * 0.18, note: '지역/현장 보정 필요' },
+        { item: '기초/고정', basis: '표준 구조비 18%', amount: structureBase * 0.18, note: '기초 방식 미확정' },
+        { item: '체결부속/조리개', basis: '표준 구조비 8%', amount: structureBase * 0.08, note: '교차점 기준 임의 추정' },
+        { item: '시공 노무/장비', basis: '표준 구조비 18%', amount: structureBase * 0.18, note: '지역/현장 보정 필요' },
         { item: 'MESH 환경제어 HW', basis: `${els.control.value}ch, 센서 ${els.sensor.value}점`, amount: q.mesh.hw, note: 'MESH 가격표 기준' },
         { item: '설치/배선/시운전', basis: `보정 ${opts.installFactor}%`, amount: installBase, note: '배선거리 미확정' }
       ];
@@ -993,7 +993,7 @@
         row('서까래', q.selected.rafter_spec),
         row('가로대/보', q.selected.purlin_or_beam_spec),
         row('피복 비닐', `${q.coverFilm.name} · ${q.coverFilm.note}`),
-        row('설계도', q.selected.has_design_drawings === 'Y' ? `AKAF 2014 p.${q.selected.akaf_2014_pages}` : '상세 확인 필요')
+        row('설계도', q.selected.has_design_drawings === 'Y' ? '표준 설계도 참조 가능' : '상세 확인 필요')
       ].join('');
       document.querySelector('#lineItems').innerHTML = [
         ['온실 구조/피복/기초 기준', `${won(q.structure)} · 측고보정 x${q.heightAdj.costFactor.toFixed(2)}`],
@@ -1001,7 +1001,7 @@
         ['MESH 환경제어 HW', won(q.mesh.hw)],
         ['설치·전선·시운전 범위', `${won(q.installMin)}~${won(q.installMax)}`],
         ['월 구독료', `${q.mesh.plan} ${won(q.mesh.monthly)}/월`],
-        ['상세 산출', q.selected.akaf_cost_parse_status === 'ok' ? 'AKAF 예정공사비 PDF 있음' : '상담 시 상세 산출 필요']
+        ['상세 산출', q.selected.akaf_cost_parse_status === 'ok' ? '표준 공사비 기준 반영' : '상담 시 상세 산출 필요']
       ].map(([a,b])=>`<div class="line-item"><span>${a}</span><strong>${b}</strong></div>`).join('');
       updateScene(q);
     }
