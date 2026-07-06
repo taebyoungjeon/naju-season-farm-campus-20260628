@@ -720,6 +720,12 @@
       if (!nums) return 0;
       return nums.map(Number).reduce((a,b)=>a+b,0) / nums.length;
     }
+    function estimatedRidge(row, inputSide, width) {
+      const standardSide = rangeMid(row?.side_height_range_m);
+      const standardRidge = rangeMid(row?.ridge_height_range_m);
+      if (standardRidge) return standardRidge + (standardSide ? inputSide - standardSide : 0);
+      return Math.max(inputSide + 1.2, inputSide + width * 0.28);
+    }
     function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
     function sideHeightAdjustment(row, inputSide, width, length, span, type) {
       const standardSide = rangeMid(row.side_height_range_m) || inputSide || 1.5;
@@ -823,7 +829,7 @@
       const side = n(els.side.value);
       const span = Math.max(1, n(els.span.value));
       const totalWidth = width * span;
-      const ridge = Math.max(side + 1.2, side + width * 0.28);
+      const ridge = estimatedRidge(q.selected, side, width);
       const frameCount = Math.min(10, Math.max(4, Math.round(length / 12)));
       const spanLines = Array.from({length: span + 1}, (_, i) => 40 + i * (240 / span));
       const frameLines = Array.from({length: frameCount + 1}, (_, i) => 40 + i * (150 / frameCount));
@@ -1154,7 +1160,7 @@
       const length = Math.min(n(els.length.value) / 7, 18);
       const side = Math.min(n(els.side.value), 4);
       const spans = Math.max(1, Math.min(n(els.span.value), 6));
-      const height = Math.max(side + 1.2, side + width * .28);
+      const height = estimatedRidge(q.selected, side, width);
       const frameMat = new THREE.LineBasicMaterial({ color: 0x2b4d42, linewidth: 2 });
       const coverMat = new THREE.MeshPhysicalMaterial({ color: 0xddeee9, transparent: true, opacity: .38, roughness: .18, metalness: 0, side: THREE.DoubleSide });
       const floorMat = new THREE.MeshStandardMaterial({ color: 0x8ca77d, roughness: .9 });

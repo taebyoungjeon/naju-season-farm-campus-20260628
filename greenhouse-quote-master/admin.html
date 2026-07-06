@@ -246,6 +246,12 @@
       if (!nums) return 0;
       return nums.map(Number).reduce((a,b)=>a+b,0) / nums.length;
     }
+    function estimatedRidge(row, inputSide, width) {
+      const standardSide = rangeMid(row?.side_height_range_m);
+      const standardRidge = rangeMid(row?.ridge_height_range_m);
+      if (standardRidge) return standardRidge + (standardSide ? inputSide - standardSide : 0);
+      return Math.max(inputSide + 1.2, inputSide + width * 0.28);
+    }
     function sideHeightAdjustment(row, inputSide, width, length, span) {
       const standardSide = rangeMid(row.side_height_range_m) || inputSide || 1.5;
       const delta = inputSide - standardSide;
@@ -282,7 +288,7 @@
       const side = c.side;
       const span = c.span;
       const totalWidth = width * span;
-      const ridge = Math.max(side + 1.2, side + width * 0.28);
+      const ridge = estimatedRidge(c.model, side, width);
       const frameCount = Math.min(10, Math.max(4, Math.round(length / 12)));
       const spanLines = Array.from({length: span + 1}, (_, i) => 40 + i * (240 / span));
       const frameLines = Array.from({length: frameCount + 1}, (_, i) => 40 + i * (150 / frameCount));
