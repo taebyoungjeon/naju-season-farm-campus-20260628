@@ -531,6 +531,27 @@
       if (!nums) return 0;
       return nums.map(Number).reduce((a,b)=>a+b,0) / nums.length;
     }
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    function sideHeightAdjustment(row, inputSide, width, length, span, type) {
+      const standardSide = rangeMid(row.side_height_range_m) || inputSide || 1.5;
+      const delta = inputSide - standardSide;
+      const inputArch = width * 1.32 + inputSide * 2;
+      const standardArch = width * 1.32 + standardSide * 2;
+      const frameFactor = standardArch ? inputArch / standardArch : 1;
+      const standardCover = width * length * span * 1.18 + (length * 2 + width * span * 2) * standardSide * 0.55;
+      const inputCover = width * length * span * 1.18 + (length * 2 + width * span * 2) * inputSide * 0.55;
+      const coverFactor = standardCover ? inputCover / standardCover : 1;
+      const braceFactor = 1 + Math.max(0, delta) * (type === '연동형' ? 0.09 : 0.07);
+      const laborFactor = 1 + Math.max(0, delta) * 0.06;
+      const highSidePremium = inputSide > 4 ? 0.08 : 0;
+      const costFactor = clamp(
+        frameFactor * 0.42 + coverFactor * 0.20 + braceFactor * 0.18 + laborFactor * 0.20 + highSidePremium,
+        0.82,
+        1.85
+      );
+      const extraSideRows = Math.max(0, Math.ceil(Math.max(0, delta) / 0.8) * 2);
+      return { standardSide, delta, frameFactor, coverFactor, costFactor, extraSideRows, inputCover };
+    }
     function modelScore(row, width, side, snow, wind) {
       if (row.facility_type !== facilityType) return -1e9;
       const w = rangeMid(row.width_range_m);
@@ -570,7 +591,7 @@
     }
     function estimate() {
       selected = pickModel();
-      const width = n(els.width.value), length = n(els.length.value), span = n(els.span.value);
+      const width = n(els.width.value), length = n(els.length.value), span = n(els.span.value), side = n(els.side.value);
       const area = width * length * Math.max(1, span);
       const pyeong = area / 3.3058;
       let structure = 0;
@@ -581,11 +602,16 @@
         const fallback = facilityType === '단동형' ? 95000 : facilityType === '연동형' ? 390000 : 280000;
         structure = fallback * pyeong;
       }
+      const heightAdj = sideHeightAdjustment(selected, side, width, length, Math.max(1, span), facilityType);
+      structure *= heightAdj.costFactor;
       const mesh = meshQuote(pyeong);
-      const [installMin, installMax] = installRange(pyeong);
+      const [rawInstallMin, rawInstallMax] = installRange(pyeong);
+      const installFactor = 1 + Math.max(0, heightAdj.delta) * 0.04;
+      const installMin = rawInstallMin * installFactor;
+      const installMax = rawInstallMax * installFactor;
       const initialMin = structure + mesh.hw + installMin;
       const initialMax = structure + mesh.hw + installMax;
-      return { selected, area, pyeong, structure, mesh, installMin, installMax, initialMin, initialMax };
+      return { selected, area, pyeong, structure, mesh, installMin, installMax, initialMin, initialMax, heightAdj };
     }
     function row(label, value) {
       return `<div class="spec-row"><b>${label}</b><span>${value || '-'}</span></div>`;
@@ -623,24 +649,25 @@
       const span = Math.max(1, n(els.span.value));
       const side = n(els.side.value);
       const spacing = parseSpacingM(q.selected.rafter_spec);
-      const purlinRows = parsePurlinRows(q.selected.purlin_or_beam_spec, facilityType);
+      const basePurlinRows = parsePurlinRows(q.selected.purlin_or_beam_spec, facilityType);
+      const purlinRows = basePurlinRows + q.heightAdj.extraSideRows;
       const rafterPerSpan = Math.ceil(length / spacing) + 1;
       const rafterCount = rafterPerSpan * span;
       const archLength = width * 1.32 + side * 2;
       const rafterPipeM = rafterCount * archLength;
       const purlinPipeM = purlinRows * length * span;
-      const coverM2 = q.area * 1.42;
+      const coverM2 = q.heightAdj.inputCover;
       const foundationM = facilityType === '연동형' ? length * (span + 1) : length * span * 2;
       const clampCount = Math.round(rafterCount * purlinRows * 1.08);
-      const braceSet = Math.max(4, Math.ceil(span * length / 28));
+      const braceSet = Math.max(4, Math.ceil(span * length / 28 * (1 + Math.max(0, q.heightAdj.delta) * 0.08)));
       const motorCount = opts.autoVent ? Math.max(2, span * 2) : 0;
       const curtainM2 = opts.curtain ? q.area : 0;
       const screenM2 = opts.screen ? q.area : 0;
       const structureBase = q.structure * (1 + opts.structureFactor / 100);
       const installBase = ((q.installMin + q.installMax) / 2) * (1 + opts.installFactor / 100);
       const rows = [
-        { item: '골조 파이프/주요 구조재', basis: 'AKAF 구조비 42%', amount: structureBase * 0.42, note: '표준 예정공사비 배분' },
-        { item: '피복/마감재', basis: 'AKAF 구조비 14%', amount: structureBase * 0.14, note: '피복 면적은 임의 추정' },
+        { item: '골조 파이프/주요 구조재', basis: `AKAF 구조비 42%, 측고보정 x${q.heightAdj.costFactor.toFixed(2)}`, amount: structureBase * 0.42, note: '표준 예정공사비 배분' },
+        { item: '피복/마감재', basis: `측고 반영 피복 ${Math.round(coverM2).toLocaleString('ko-KR')}㎡`, amount: structureBase * 0.14, note: '피복 면적 추정' },
         { item: '기초/고정', basis: 'AKAF 구조비 18%', amount: structureBase * 0.18, note: '기초 방식 미확정' },
         { item: '체결부속/조리개', basis: 'AKAF 구조비 8%', amount: structureBase * 0.08, note: '교차점 기준 임의 추정' },
         { item: '시공 노무/장비', basis: 'AKAF 구조비 18%', amount: structureBase * 0.18, note: '지역/현장 보정 필요' },
@@ -656,8 +683,8 @@
       const total = subtotal + contingency;
       const bom = [
         ['서까래 파이프', `${Math.round(rafterPipeM).toLocaleString('ko-KR')} m`, `${rafterCount.toLocaleString('ko-KR')}본, 간격 ${spacing.toFixed(2)}m`, '표준 규격에서 간격 추출'],
-        ['가로대/도리 파이프', `${Math.round(purlinPipeM).toLocaleString('ko-KR')} m`, `${purlinRows}줄`, '줄 수는 도면 확인 필요'],
-        ['피복비닐/마감재', `${Math.round(coverM2).toLocaleString('ko-KR')} ㎡`, '면적 x 1.42', '겹침/여유율 임의'],
+        ['가로대/도리 파이프', `${Math.round(purlinPipeM).toLocaleString('ko-KR')} m`, `${basePurlinRows}줄 + 측고보강 ${q.heightAdj.extraSideRows}줄`, '줄 수는 도면 확인 필요'],
+        ['피복비닐/마감재', `${Math.round(coverM2).toLocaleString('ko-KR')} ㎡`, '지붕면 + 측벽면 + 여유율', '측고 반영 추정'],
         ['기초/고정 구간', `${Math.round(foundationM).toLocaleString('ko-KR')} m`, facilityType === '연동형' ? '스팬 경계 기준' : '양측면 기준', '현장 기초 방식 미확정'],
         ['내재해/일반 조리개', `${clampCount.toLocaleString('ko-KR')} 개`, '교차점 x 1.08', '상세 체결 위치 필요'],
         ['브레싱/버팀대', `${braceSet} set`, '길이/동수 기준', '전후면/모서리 보강 확인'],
@@ -668,7 +695,8 @@
       if (screenM2) bom.push(['차광/스크린', `${Math.round(screenM2).toLocaleString('ko-KR')} ㎡`, '온실 바닥면적 기준', '차광율/구동방식 미확정']);
       const assumptions = [
         `서까래 간격은 '${q.selected.rafter_spec || '표준 미기재'}'에서 추출했고, 없으면 0.6m로 임의 적용했습니다.`,
-        `가로대/도리 줄 수는 '${q.selected.purlin_or_beam_spec || '표준 미기재'}'에서 추출했고, 없으면 시설 유형별 기본값을 임의 적용했습니다.`,
+        `표준 측고 ${q.heightAdj.standardSide.toFixed(1)}m 대비 입력 측고 ${side.toFixed(1)}m를 반영해 구조비 보정계수 x${q.heightAdj.costFactor.toFixed(2)}를 적용했습니다.`,
+        `가로대/도리 줄 수는 '${q.selected.purlin_or_beam_spec || '표준 미기재'}'에서 추출했고, 측고 증가분 0.8m마다 측면 보강 2줄을 임의 추가했습니다.`,
         '세부 원가 배분율은 골조 42%, 피복 14%, 기초 18%, 부속 8%, 노무 18%로 임의 설정했습니다.',
         '피복 면적은 바닥면적 x 1.42, 예비비는 7%로 임의 설정했습니다.',
         '운반비, 폐기물, 토목, 전기 인입, 인허가, 부가세는 최종 견적에서 별도 확인해야 합니다.'
@@ -703,7 +731,7 @@
       document.querySelector('#totalMetric').textContent = `${won(q.initialMin)}~${won(q.initialMax)}`;
       document.querySelector('#subMetric').textContent = `${q.mesh.plan} ${won(q.mesh.monthly)}/월`;
       document.querySelector('#quoteAmount').textContent = `${won(q.initialMin)}~${won(q.initialMax)}`;
-      document.querySelector('#quoteNote').textContent = `구조물 ${won(q.structure)}, MESH HW ${won(q.mesh.hw)}, 설치/배선 ${won(q.installMin)}~${won(q.installMax)} 기준`;
+      document.querySelector('#quoteNote').textContent = `구조물 ${won(q.structure)}(측고보정 x${q.heightAdj.costFactor.toFixed(2)}), MESH HW ${won(q.mesh.hw)}, 설치/배선 ${won(q.installMin)}~${won(q.installMax)} 기준`;
       document.querySelector('#statusBadge').textContent = q.selected.data_status.includes('akaf_2024_cost') ? '공사비 기준 매칭' : '표준규격 기준 추정';
       document.querySelector('#specList').innerHTML = [
         row('표준 코드', q.selected.model_code),
@@ -715,7 +743,7 @@
         row('설계도', q.selected.has_design_drawings === 'Y' ? `AKAF 2014 p.${q.selected.akaf_2014_pages}` : '상세 확인 필요')
       ].join('');
       document.querySelector('#lineItems').innerHTML = [
-        ['온실 구조/피복/기초 기준', won(q.structure)],
+        ['온실 구조/피복/기초 기준', `${won(q.structure)} · 측고보정 x${q.heightAdj.costFactor.toFixed(2)}`],
         ['MESH 환경제어 HW', won(q.mesh.hw)],
         ['설치·전선·시운전 범위', `${won(q.installMin)}~${won(q.installMax)}`],
         ['월 구독료', `${q.mesh.plan} ${won(q.mesh.monthly)}/월`],
@@ -743,6 +771,7 @@
       document.querySelector('#basisTable').innerHTML = tableRows({
         추천규격: q.selected.model_code,
         내재해: `적설 ${q.selected.snow_depth_range_cm}, 풍속 ${q.selected.wind_speed_range_m_s}`,
+        측고보정: `표준 ${q.heightAdj.standardSide.toFixed(1)}m → 입력 ${els.side.value}m, x${q.heightAdj.costFactor.toFixed(2)}`,
         구조예상: won(q.structure),
         MESH_HW: won(q.mesh.hw),
         초기투자: `${won(q.initialMin)}~${won(q.initialMax)}`,
