@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MESH 온실 견적 시뮬레이터</title>
   <script src="./greenhouse-data.js"></script>
+  <script defer src="./vendor/html2canvas.min.js"></script>
+  <script defer src="./vendor/jspdf.umd.min.js"></script>
+  <script defer>
+    window.addEventListener('DOMContentLoaded', function () {
+      document.documentElement.dataset.pdfReady = String(Boolean(window.html2canvas && window.jspdf?.jsPDF));
+    });
+  </script>
   <style>
     :root {
       --bg: #f7f8f5;
@@ -366,6 +373,39 @@
     #bomTable .num, #bomTable .money { text-align: right; white-space: nowrap; }
     #bomTable th:first-child, #bomTable td:first-child { min-width: 86px; }
     .form-note { margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .pdf-export-root {
+      position: fixed;
+      left: -10000px;
+      top: 0;
+      width: 794px;
+      background: #fff;
+      color: var(--ink);
+      padding: 24px;
+      z-index: -1;
+    }
+    .pdf-export-root h1 {
+      margin: 0 0 16px;
+      font-size: 24px;
+      line-height: 1.25;
+    }
+    .pdf-export-root .modal-body {
+      max-height: none;
+      overflow: visible;
+      padding: 0;
+    }
+    .pdf-export-root .estimate-actions,
+    .pdf-export-root .pdf-exclude {
+      display: none !important;
+    }
+    .pdf-value {
+      display: inline-block;
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      padding: 8px 10px;
+      white-space: pre-wrap;
+    }
     .footer-band {
       padding: 20px 18px 28px;
       color: var(--muted);
@@ -717,9 +757,9 @@
       <h3>임의 가정 및 옵션</h3>
       <ul class="assumption-list" id="assumptionList"></ul>
       <div class="estimate-actions">
-        <button class="primary-btn" id="printDetail" type="button">견적서 출력</button>
+        <button class="primary-btn" id="printDetail" type="button">PDF 다운로드</button>
       </div>
-      <p style="color:var(--muted);font-size:13px;line-height:1.5">홈페이지 적용 시 이 내용은 CRM, 이메일, 카카오 알림톡, 또는 내부 견적 검토 큐로 전송하면 됩니다.</p>
+      <p class="pdf-exclude" style="color:var(--muted);font-size:13px;line-height:1.5">홈페이지 적용 시 이 내용은 CRM, 이메일, 카카오 알림톡, 또는 내부 견적 검토 큐로 전송하면 됩니다.</p>
     </div>
   </dialog>
 
@@ -1217,6 +1257,84 @@
       }
       showDetail();
     }
+    function replaceFormControlsForPdf(root) {
+      root.querySelectorAll('textarea').forEach(el => {
+        const div = document.createElement('div');
+        div.className = 'pdf-value';
+        div.textContent = el.value || '-';
+        el.replaceWith(div);
+      });
+      root.querySelectorAll('select').forEach(el => {
+        const div = document.createElement('div');
+        div.className = 'pdf-value';
+        div.textContent = el.options[el.selectedIndex]?.textContent || el.value || '-';
+        el.replaceWith(div);
+      });
+      root.querySelectorAll('input').forEach(el => {
+        const span = document.createElement('span');
+        span.className = 'pdf-value';
+        if (el.type === 'checkbox' || el.type === 'radio') {
+          span.textContent = el.checked ? '선택' : '미선택';
+        } else {
+          span.textContent = el.value || '-';
+        }
+        el.replaceWith(span);
+      });
+    }
+    async function downloadDetailPdf() {
+      const btn = document.querySelector('#printDetail');
+      const source = document.querySelector('#detailDialog .modal-body');
+      const html2canvas = window.html2canvas;
+      const jsPDF = window.jspdf?.jsPDF;
+      if (!source || !html2canvas || !jsPDF) {
+        window.print();
+        return;
+      }
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'PDF 생성 중';
+      const wrapper = document.createElement('div');
+      wrapper.className = 'pdf-export-root';
+      const title = document.createElement('h1');
+      title.textContent = 'MESH 온실 상세견적서';
+      const clone = source.cloneNode(true);
+      replaceFormControlsForPdf(clone);
+      wrapper.append(title, clone);
+      document.body.appendChild(wrapper);
+      try {
+        const canvas = await html2canvas(wrapper, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          useCORS: true,
+          windowWidth: wrapper.scrollWidth,
+          windowHeight: wrapper.scrollHeight
+        });
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const margin = 8;
+        const pageWidth = 210;
+        const pageHeight = 297;
+        const imgWidth = pageWidth - margin * 2;
+        const imgHeight = canvas.height * imgWidth / canvas.width;
+        const usableHeight = pageHeight - margin * 2;
+        const imgData = canvas.toDataURL('image/jpeg', 0.92);
+        let y = margin;
+        let remaining = imgHeight;
+        pdf.addImage(imgData, 'JPEG', margin, y, imgWidth, imgHeight);
+        remaining -= usableHeight;
+        while (remaining > 0) {
+          pdf.addPage();
+          y = margin - (imgHeight - remaining);
+          pdf.addImage(imgData, 'JPEG', margin, y, imgWidth, imgHeight);
+          remaining -= usableHeight;
+        }
+        const date = new Date().toISOString().slice(0, 10).replaceAll('-', '');
+        pdf.save(`MESH_온실_상세견적서_${date}.pdf`);
+      } finally {
+        wrapper.remove();
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    }
     document.querySelector('#typeTabs').addEventListener('click', e => {
       const btn = e.target.closest('button');
       if (!btn) return;
@@ -1282,7 +1400,7 @@
       document.querySelector(id)?.addEventListener('input', renderDetailedTables);
       document.querySelector(id)?.addEventListener('change', renderDetailedTables);
     });
-    document.querySelector('#printDetail').addEventListener('click', () => window.print());
+    document.querySelector('#printDetail').addEventListener('click', downloadDetailPdf);
 
     let scene, camera, renderer, group, fallback = false;
     function initScene() {
