@@ -484,6 +484,17 @@
         </div>
         </div>
         <div class="wizard-step" data-step="7">
+          <h3>피복 비닐</h3>
+          <p class="wizard-help">현재 상세 규격 전에는 장수비닐을 기본 임의 사양으로 둡니다. PO필름 선택 시 피복비를 임의 보정합니다.</p>
+          <div class="field">
+            <label for="coverFilmSelect">피복 비닐</label>
+            <select id="coverFilmSelect">
+              <option value="장수비닐">장수비닐</option>
+              <option value="PO필름">PO필름</option>
+            </select>
+          </div>
+        </div>
+        <div class="wizard-step" data-step="8">
           <h3>MESH 환경제어</h3>
           <p class="wizard-help">제어 채널과 센서 포인트를 입력하면 환경제어 HW와 구독료가 산출됩니다.</p>
           <div class="field-grid">
@@ -505,7 +516,7 @@
             </select>
           </div>
         </div>
-        <div class="wizard-step" data-step="8">
+        <div class="wizard-step" data-step="9">
           <h3>추가 요청</h3>
           <p class="wizard-help">다겹보온커튼, 측창 자동개폐, 양액기 연동 같은 요청을 적습니다.</p>
         <div class="field">
@@ -642,6 +653,7 @@
       snow: document.querySelector('#snowInput'),
       wind: document.querySelector('#windInput'),
       crop: document.querySelector('#cropInput'),
+      coverFilm: document.querySelector('#coverFilmSelect'),
       options: document.querySelector('#optionsInput'),
       control: document.querySelector('#controlInput'),
       sensor: document.querySelector('#sensorInput'),
@@ -651,7 +663,7 @@
     let selected = null;
     let wizardStep = 0;
     let wizardComplete = false;
-    const wizardMaxStep = 8;
+    const wizardMaxStep = 9;
 
     function n(v) { return Number(String(v || '').replace(/[^\d.-]/g, '')) || 0; }
     function won(v) {
@@ -668,12 +680,13 @@
       if (step === 4) return `${els.span.value}`;
       if (step === 5) return `적설 ${els.snow.value}cm / 풍속 ${els.wind.value}m/s`;
       if (step === 6) return els.crop.value;
-      if (step === 7) return `${els.control.value}ch / 센서 ${els.sensor.value}점`;
-      if (step === 8) return els.options.value || '상담 후 확정';
+      if (step === 7) return els.coverFilm.value;
+      if (step === 8) return `${els.control.value}ch / 센서 ${els.sensor.value}점`;
+      if (step === 9) return els.options.value || '상담 후 확정';
       return '-';
     }
     function stepLabel(step) {
-      return ['시설 형태','시설 폭','시설 길이','측고','동수/연동 수','내재해 기준','작목/용도','MESH 환경제어','추가 요청'][step] || '-';
+      return ['시설 형태','시설 폭','시설 길이','측고','동수/연동 수','내재해 기준','작목/용도','피복 비닐','MESH 환경제어','추가 요청'][step] || '-';
     }
     function currentStepValid() {
       if (wizardStep === 1) return n(els.width.value) >= 3;
@@ -681,7 +694,7 @@
       if (wizardStep === 3) return n(els.side.value) >= 0.8;
       if (wizardStep === 4) return n(els.span.value) >= 1;
       if (wizardStep === 5) return n(els.snow.value) >= 20 && n(els.wind.value) >= 20;
-      if (wizardStep === 7) return n(els.control.value) >= 0 && n(els.sensor.value) >= 0;
+      if (wizardStep === 8) return n(els.control.value) >= 0 && n(els.sensor.value) >= 0;
       return true;
     }
     function updateWizard() {
@@ -765,6 +778,13 @@
       if (areaPyeong <= 1000) return [700000, 1500000];
       return [1500000, 3500000];
     }
+    function coverFilmInfo() {
+      const name = els.coverFilm?.value || '장수비닐';
+      if (name === 'PO필름') {
+        return { name, factor: 1.18, note: 'PO필름 선택, 피복비 +18% 임의 보정' };
+      }
+      return { name: '장수비닐', factor: 1, note: '기본 임의 사양' };
+    }
     function estimate() {
       selected = pickModel();
       const width = n(els.width.value), length = n(els.length.value), span = n(els.span.value), side = n(els.side.value);
@@ -780,6 +800,8 @@
       }
       const heightAdj = sideHeightAdjustment(selected, side, width, length, Math.max(1, span), facilityType);
       structure *= heightAdj.costFactor;
+      const coverFilm = coverFilmInfo();
+      structure *= 1 + (coverFilm.factor - 1) * 0.14;
       const mesh = meshQuote(pyeong);
       const [rawInstallMin, rawInstallMax] = installRange(pyeong);
       const installFactor = 1 + Math.max(0, heightAdj.delta) * 0.04;
@@ -787,7 +809,7 @@
       const installMax = rawInstallMax * installFactor;
       const initialMin = structure + mesh.hw + installMin;
       const initialMax = structure + mesh.hw + installMax;
-      return { selected, area, pyeong, structure, mesh, installMin, installMax, initialMin, initialMax, heightAdj };
+      return { selected, area, pyeong, structure, mesh, installMin, installMax, initialMin, initialMax, heightAdj, coverFilm };
     }
     function row(label, value) {
       return `<div class="spec-row"><b>${label}</b><span>${value || '-'}</span></div>`;
@@ -890,11 +912,12 @@
       const motorCount = opts.autoVent ? Math.max(2, span * 2) : 0;
       const curtainM2 = opts.curtain ? q.area : 0;
       const screenM2 = opts.screen ? q.area : 0;
-      const structureBase = q.structure * (1 + opts.structureFactor / 100);
+      const structureBeforeCover = q.structure / (1 + (q.coverFilm.factor - 1) * 0.14);
+      const structureBase = structureBeforeCover * (1 + opts.structureFactor / 100);
       const installBase = ((q.installMin + q.installMax) / 2) * (1 + opts.installFactor / 100);
       const rows = [
         { item: '골조 파이프/주요 구조재', basis: `AKAF 구조비 42%, 측고보정 x${q.heightAdj.costFactor.toFixed(2)}`, amount: structureBase * 0.42, note: '표준 예정공사비 배분' },
-        { item: '피복/마감재', basis: `측고 반영 피복 ${Math.round(coverM2).toLocaleString('ko-KR')}㎡`, amount: structureBase * 0.14, note: '피복 면적 추정' },
+        { item: '피복/마감재', basis: `${q.coverFilm.name} · 피복 ${Math.round(coverM2).toLocaleString('ko-KR')}㎡`, amount: structureBase * 0.14 * q.coverFilm.factor, note: q.coverFilm.note },
         { item: '기초/고정', basis: 'AKAF 구조비 18%', amount: structureBase * 0.18, note: '기초 방식 미확정' },
         { item: '체결부속/조리개', basis: 'AKAF 구조비 8%', amount: structureBase * 0.08, note: '교차점 기준 임의 추정' },
         { item: '시공 노무/장비', basis: 'AKAF 구조비 18%', amount: structureBase * 0.18, note: '지역/현장 보정 필요' },
@@ -911,7 +934,7 @@
       const bom = [
         ['서까래 파이프', `${Math.round(rafterPipeM).toLocaleString('ko-KR')} m`, `${rafterCount.toLocaleString('ko-KR')}본, 간격 ${spacing.toFixed(2)}m`, '표준 규격에서 간격 추출'],
         ['가로대/도리 파이프', `${Math.round(purlinPipeM).toLocaleString('ko-KR')} m`, `${basePurlinRows}줄 + 측고보강 ${q.heightAdj.extraSideRows}줄`, '줄 수는 도면 확인 필요'],
-        ['피복비닐/마감재', `${Math.round(coverM2).toLocaleString('ko-KR')} ㎡`, '지붕면 + 측벽면 + 여유율', '측고 반영 추정'],
+        ['피복비닐/마감재', `${Math.round(coverM2).toLocaleString('ko-KR')} ㎡`, `지붕면 + 측벽면 + 여유율 / ${q.coverFilm.name}`, q.coverFilm.note],
         ['기초/고정 구간', `${Math.round(foundationM).toLocaleString('ko-KR')} m`, facilityType === '연동형' ? '스팬 경계 기준' : '양측면 기준', '현장 기초 방식 미확정'],
         ['내재해/일반 조리개', `${clampCount.toLocaleString('ko-KR')} 개`, '교차점 x 1.08', '상세 체결 위치 필요'],
         ['브레싱/버팀대', `${braceSet} set`, '길이/동수 기준', '전후면/모서리 보강 확인'],
@@ -924,6 +947,7 @@
         `서까래 간격은 '${q.selected.rafter_spec || '표준 미기재'}'에서 추출했고, 없으면 0.6m로 임의 적용했습니다.`,
         `표준 측고 ${q.heightAdj.standardSide.toFixed(1)}m 대비 입력 측고 ${side.toFixed(1)}m를 반영해 구조비 보정계수 x${q.heightAdj.costFactor.toFixed(2)}를 적용했습니다.`,
         `가로대/도리 줄 수는 '${q.selected.purlin_or_beam_spec || '표준 미기재'}'에서 추출했고, 측고 증가분 0.8m마다 측면 보강 2줄을 임의 추가했습니다.`,
+        `피복 비닐은 기본 임의값을 장수비닐로 두고, 현재 선택값은 ${q.coverFilm.name}입니다. PO필름은 피복비 +18%로 임의 보정했습니다.`,
         '세부 원가 배분율은 골조 42%, 피복 14%, 기초 18%, 부속 8%, 노무 18%로 임의 설정했습니다.',
         '피복 면적은 바닥면적 x 1.42, 예비비는 7%로 임의 설정했습니다.',
         '운반비, 폐기물, 토목, 전기 인입, 인허가, 부가세는 최종 견적에서 별도 확인해야 합니다.'
@@ -968,10 +992,12 @@
         row('규격', `폭 ${q.selected.width_range_m || '-'} / 측고 ${q.selected.side_height_range_m || '-'} / 동고 ${q.selected.ridge_height_range_m || '-'}`),
         row('서까래', q.selected.rafter_spec),
         row('가로대/보', q.selected.purlin_or_beam_spec),
+        row('피복 비닐', `${q.coverFilm.name} · ${q.coverFilm.note}`),
         row('설계도', q.selected.has_design_drawings === 'Y' ? `AKAF 2014 p.${q.selected.akaf_2014_pages}` : '상세 확인 필요')
       ].join('');
       document.querySelector('#lineItems').innerHTML = [
         ['온실 구조/피복/기초 기준', `${won(q.structure)} · 측고보정 x${q.heightAdj.costFactor.toFixed(2)}`],
+        ['피복 비닐 가정', `${q.coverFilm.name} · ${q.coverFilm.note}`],
         ['MESH 환경제어 HW', won(q.mesh.hw)],
         ['설치·전선·시운전 범위', `${won(q.installMin)}~${won(q.installMax)}`],
         ['월 구독료', `${q.mesh.plan} ${won(q.mesh.monthly)}/월`],
@@ -999,18 +1025,20 @@
         측고: `${els.side.value}m`,
         동수: els.span.value,
         작목: els.crop.value,
+        피복비닐: `${q.coverFilm.name} (${q.coverFilm.note})`,
         MESH: `${els.control.value}ch / 센서 ${els.sensor.value}점`
       });
       document.querySelector('#basisTable').innerHTML = tableRows({
         추천규격: q.selected.model_code,
         내재해: `적설 ${q.selected.snow_depth_range_cm}, 풍속 ${q.selected.wind_speed_range_m_s}`,
         측고보정: `표준 ${q.heightAdj.standardSide.toFixed(1)}m → 입력 ${els.side.value}m, x${q.heightAdj.costFactor.toFixed(2)}`,
+        피복비닐: `${q.coverFilm.name} · ${q.coverFilm.note}`,
         구조예상: won(q.structure),
         MESH_HW: won(q.mesh.hw),
         초기투자: `${won(q.initialMin)}~${won(q.initialMax)}`,
         월구독: `${q.mesh.plan} ${won(q.mesh.monthly)}/월`
       });
-      document.querySelector('#inquiryText').value = `견적 검토 요청: ${facilityType} ${els.width.value}m x ${els.length.value}m x ${els.span.value}동, ${els.crop.value}. 추천규격 ${q.selected.model_code}. 요청사항: ${els.options.value || '상담 후 확정'}`;
+      document.querySelector('#inquiryText').value = `견적 검토 요청: ${facilityType} ${els.width.value}m x ${els.length.value}m x ${els.span.value}동, ${els.crop.value}. 피복 ${q.coverFilm.name}. 추천규격 ${q.selected.model_code}. 요청사항: ${els.options.value || '상담 후 확정'}`;
       renderDetailedTables();
       document.querySelector('#detailDialog').showModal();
       renderDetailedTables();

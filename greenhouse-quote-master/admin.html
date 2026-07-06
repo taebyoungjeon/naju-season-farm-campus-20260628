@@ -172,6 +172,13 @@
           <label class="check"><input id="screen" type="checkbox"> 차광/스크린</label>
           <label class="check"><input id="irrigation" type="checkbox"> 관수/양액 연동</label>
         </div>
+        <div class="field">
+          <label for="coverFilm">피복 비닐</label>
+          <select id="coverFilm">
+            <option value="장수비닐">장수비닐</option>
+            <option value="PO필름">PO필름</option>
+          </select>
+        </div>
       </section>
 
       <section>
@@ -179,7 +186,7 @@
         <div class="grid">
           <div class="field"><label for="pipeUnit">골조 파이프 원/m</label><input id="pipeUnit" type="number" value="4200"></div>
           <div class="field"><label for="purlinUnit">가로대 원/m</label><input id="purlinUnit" type="number" value="3200"></div>
-          <div class="field"><label for="coverUnit">피복 원/㎡</label><input id="coverUnit" type="number" value="2800"></div>
+          <div class="field"><label for="coverUnit">피복 기본 원/㎡</label><input id="coverUnit" type="number" value="2800"></div>
           <div class="field"><label for="clampUnit">조리개 원/개</label><input id="clampUnit" type="number" value="950"></div>
           <div class="field"><label for="foundationUnit">기초/고정 원/m</label><input id="foundationUnit" type="number" value="9500"></div>
           <div class="field"><label for="motorUnit">모터/축 원/대</label><input id="motorUnit" type="number" value="350000"></div>
@@ -223,7 +230,7 @@
   <script>
     const data = window.GREENHOUSE_MASTER || [];
     const $ = id => document.querySelector(id);
-    const fields = ['#modelSelect','#width','#length','#side','#span','#autoVent','#curtain','#screen','#irrigation','#pipeUnit','#purlinUnit','#coverUnit','#clampUnit','#foundationUnit','#motorUnit','#curtainUnit','#screenUnit','#laborRate','#marginRate','#contingencyRate','#vatRate','#memo'];
+    const fields = ['#modelSelect','#width','#length','#side','#span','#autoVent','#curtain','#screen','#irrigation','#coverFilm','#pipeUnit','#purlinUnit','#coverUnit','#clampUnit','#foundationUnit','#motorUnit','#curtainUnit','#screenUnit','#laborRate','#marginRate','#contingencyRate','#vatRate','#memo'];
     function num(id) { return Number(String($(id).value || '').replace(/[^\d.-]/g,'')) || 0; }
     function won(v) {
       if (!isFinite(v) || v <= 0) return '-';
@@ -260,6 +267,11 @@
       if (type === '연동형') return 9;
       if (type === '광폭형') return 11;
       return 7;
+    }
+    function coverFilmInfo() {
+      const name = $('#coverFilm')?.value || '장수비닐';
+      if (name === 'PO필름') return { name, factor: 1.18, note: 'PO필름 선택, 피복 기본단가 x1.18 임의 보정' };
+      return { name: '장수비닐', factor: 1, note: '기본 임의 사양' };
     }
     function selectedModel() {
       return data.find(r => r.model_code === $('#modelSelect').value) || data[0] || {};
@@ -334,10 +346,12 @@
       const motorCount = $('#autoVent').checked ? Math.max(2, span * 2) : 0;
       const curtainM2 = $('#curtain').checked ? area : 0;
       const screenM2 = $('#screen').checked ? area : 0;
+      const coverFilm = coverFilmInfo();
+      const coverUnit = Math.round(num('#coverUnit') * coverFilm.factor);
       const bom = [
         ['서까래 파이프', 'm', Math.round(rafterM), num('#pipeUnit'), '서까래 수 x 아치 길이'],
         ['가로대/도리 파이프', 'm', Math.round(purlinM), num('#purlinUnit'), `${basePurlinRows}줄 + 측고보강 ${heightAdj.extraSideRows}줄`],
-        ['피복비닐/마감재', '㎡', Math.round(coverM2), num('#coverUnit'), '지붕면 + 측벽면 + 여유율'],
+        ['피복비닐/마감재', '㎡', Math.round(coverM2), coverUnit, `${coverFilm.name} / 지붕면 + 측벽면 + 여유율`],
         ['기초/고정', 'm', Math.round(foundationM), num('#foundationUnit'), '기초 방식 미확정'],
         ['내재해/일반 조리개', '개', clampCount, num('#clampUnit'), '교차점 추정'],
         ['브레싱/버팀대', 'set', braceSet, 85000, '길이/동수 기준'],
@@ -354,7 +368,7 @@
       const contingency = marginBase * num('#contingencyRate') / 100;
       const supply = marginBase + margin + contingency;
       const vat = supply * num('#vatRate') / 100;
-      return { model, width, length, side, span, area, pyeong, spacing, purlinRows, heightAdj, bom, material, labor, mesh, margin, contingency, supply, vat };
+      return { model, width, length, side, span, area, pyeong, spacing, purlinRows, heightAdj, bom, material, labor, mesh, margin, contingency, supply, vat, coverFilm };
     }
     function render() {
       const c = calc();
@@ -381,6 +395,7 @@
         ['표준 모델', `${c.model.model_code || '-'} / ${c.model.facility_type || '-'}`],
         ['내재해 기준', `적설 ${c.model.snow_depth_range_cm || '-'}, 풍속 ${c.model.wind_speed_range_m_s || '-'}`],
         ['측고 보정', `표준 ${c.heightAdj.standardSide.toFixed(1)}m → 입력 ${c.side.toFixed(1)}m, 측면 보강 ${c.heightAdj.extraSideRows}줄 추가`],
+        ['피복 비닐', `${c.coverFilm.name} / ${c.coverFilm.note}`],
         ['서까래 간격', `${c.spacing.toFixed(2)}m, 표준 미기재 시 임의 0.6m`],
         ['가로대 줄 수', `${c.purlinRows}줄, 표준 미기재 시 유형별 임의값 + 측고 보정`],
         ['관리자 메모', $('#memo').value || '-'],
@@ -405,6 +420,7 @@
         `면적: ${Math.round(c.area).toLocaleString('ko-KR')}㎡`,
         `공급가: ${won(c.supply)}`,
         `VAT 포함: ${won(c.supply + c.vat)}`,
+        `피복 비닐: ${c.coverFilm.name} (${c.coverFilm.note})`,
         '',
         '물량내역:',
         ...c.bom.map(r => `- ${r[0]}: ${r[2].toLocaleString('ko-KR')}${r[1]} x ${won(r[3])} = ${won(r[2] * r[3])}`)
