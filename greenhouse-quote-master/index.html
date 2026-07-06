@@ -362,6 +362,9 @@
     .mini-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .mini-table th, .mini-table td { border-bottom: 1px solid var(--line); padding: 9px 6px; text-align: left; vertical-align: top; }
     .mini-table th { color: var(--muted); font-weight: 650; width: 38%; }
+    #costBreakdownTable th, #costBreakdownTable td, #bomTable th, #bomTable td { width: auto; }
+    #bomTable .num, #bomTable .money { text-align: right; white-space: nowrap; }
+    #bomTable th:first-child, #bomTable td:first-child { min-width: 86px; }
     .footer-band {
       padding: 20px 18px 28px;
       color: var(--muted);
@@ -672,6 +675,10 @@
       if (v >= 10000) return Math.round(v / 10000).toLocaleString('ko-KR') + '만원';
       return Math.round(v).toLocaleString('ko-KR') + '원';
     }
+    function exactWon(v) {
+      if (!isFinite(v) || v <= 0) return '-';
+      return Math.round(v).toLocaleString('ko-KR') + '원';
+    }
     function stepValue(step) {
       if (step === 0) return facilityType.replace('형','');
       if (step === 1) return `${els.width.value}m`;
@@ -941,18 +948,20 @@
       const subtotal = rows.reduce((sum, r) => sum + r.amount, 0);
       const contingency = subtotal * 0.07;
       const total = subtotal + contingency;
+      const coverUnit = Math.round(2800 * q.coverFilm.factor);
+      const meshQty = Math.max(1, q.mesh.totalModules);
       const bom = [
-        ['서까래 파이프', `${Math.round(rafterPipeM).toLocaleString('ko-KR')} m`, `${rafterCount.toLocaleString('ko-KR')}본, 간격 ${spacing.toFixed(2)}m`, '표준 규격에서 간격 추출'],
-        ['가로대/도리 파이프', `${Math.round(purlinPipeM).toLocaleString('ko-KR')} m`, `${basePurlinRows}줄 + 측고보강 ${q.heightAdj.extraSideRows}줄`, '줄 수는 도면 확인 필요'],
-        ['피복비닐/마감재', `${Math.round(coverM2).toLocaleString('ko-KR')} ㎡`, `지붕면 + 측벽면 + 여유율 / ${q.coverFilm.name}`, q.coverFilm.note],
-        ['기초/고정 구간', `${Math.round(foundationM).toLocaleString('ko-KR')} m`, facilityType === '연동형' ? '스팬 경계 기준' : '양측면 기준', '현장 기초 방식 미확정'],
-        ['내재해/일반 조리개', `${clampCount.toLocaleString('ko-KR')} 개`, '교차점 x 1.08', '상세 체결 위치 필요'],
-        ['브레싱/버팀대', `${braceSet} set`, '길이/동수 기준', '전후면/모서리 보강 확인'],
-        ['MESH 제어모듈', `${q.mesh.totalModules} ea`, `제어 ${els.control.value}, 센서 ${els.sensor.value}, 배터리 ${els.sensor.value}`, '제품 구성 확정 필요']
+        { item: '서까래 파이프', unit: 'm', qty: Math.round(rafterPipeM), unitPrice: 4200 },
+        { item: '가로대/도리 파이프', unit: 'm', qty: Math.round(purlinPipeM), unitPrice: 3200 },
+        { item: '피복비닐/마감재', unit: '㎡', qty: Math.round(coverM2), unitPrice: coverUnit },
+        { item: '기초/고정 구간', unit: 'm', qty: Math.round(foundationM), unitPrice: 9500 },
+        { item: '내재해/일반 조리개', unit: '개', qty: clampCount, unitPrice: 950 },
+        { item: '브레싱/버팀대', unit: 'set', qty: braceSet, unitPrice: 85000 },
+        { item: 'MESH 제어모듈', unit: 'ea', qty: meshQty, unitPrice: Math.round(q.mesh.hw / meshQty) }
       ];
-      if (motorCount) bom.push(['권취/개폐 모터', `${motorCount} 대`, '측창 좌우 기준', '전압/토크 미확정']);
-      if (curtainM2) bom.push(['다겹보온커튼', `${Math.round(curtainM2).toLocaleString('ko-KR')} ㎡`, '온실 바닥면적 기준', '겹수/중량 미확정']);
-      if (screenM2) bom.push(['차광/스크린', `${Math.round(screenM2).toLocaleString('ko-KR')} ㎡`, '온실 바닥면적 기준', '차광율/구동방식 미확정']);
+      if (motorCount) bom.push({ item: '권취/개폐 모터', unit: '대', qty: motorCount, unitPrice: 350000 });
+      if (curtainM2) bom.push({ item: '다겹보온커튼', unit: '㎡', qty: Math.round(curtainM2), unitPrice: 22000 });
+      if (screenM2) bom.push({ item: '차광/스크린', unit: '㎡', qty: Math.round(screenM2), unitPrice: 12000 });
       const assumptions = [
         `서까래 간격은 '${q.selected.rafter_spec || '표준 미기재'}'에서 추출했고, 없으면 0.6m로 임의 적용했습니다.`,
         `표준 측고 ${q.heightAdj.standardSide.toFixed(1)}m 대비 입력 측고 ${side.toFixed(1)}m를 반영해 공사비 보정계수 x${q.heightAdj.costFactor.toFixed(2)}를 적용했습니다.`,
@@ -969,15 +978,15 @@
       const q = estimate();
       const detail = detailedEstimate(q);
       const costRows = [
-        '<tr><th>항목</th><th>산출근거</th><th>금액</th><th>비고</th></tr>',
-        ...detail.rows.map(r => `<tr><td>${r.item}</td><td>${r.basis}</td><td>${won(r.amount)}</td><td>${r.note}</td></tr>`),
-        `<tr><th colspan="2">소계</th><td>${won(detail.subtotal)}</td><td>VAT 별도</td></tr>`,
-        `<tr><th colspan="2">예비비 7%</th><td>${won(detail.contingency)}</td><td>임의</td></tr>`,
-        `<tr><th colspan="2">상세견적 합계</th><td><strong>${won(detail.total)}</strong></td><td>초안</td></tr>`
+        '<tr><th>항목</th><th>산출근거</th><th>금액</th></tr>',
+        ...detail.rows.map(r => `<tr><td>${r.item}</td><td>${r.basis}</td><td>${won(r.amount)}</td></tr>`),
+        `<tr><th colspan="2">소계</th><td>${won(detail.subtotal)}</td></tr>`,
+        `<tr><th colspan="2">예비비 7%</th><td>${won(detail.contingency)}</td></tr>`,
+        `<tr><th colspan="2">상세견적 합계</th><td><strong>${won(detail.total)}</strong></td></tr>`
       ].join('');
       const bomRows = [
-        '<tr><th>품목</th><th>수량</th><th>산출식</th><th>비고</th></tr>',
-        ...detail.bom.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`)
+        '<tr><th>품목</th><th>단위</th><th class="num">수량</th><th class="money">단가</th><th class="money">금액</th></tr>',
+        ...detail.bom.map(r => `<tr><td>${r.item}</td><td>${r.unit}</td><td class="num">${r.qty.toLocaleString('ko-KR')}</td><td class="money">${exactWon(r.unitPrice)}</td><td class="money">${exactWon(r.qty * r.unitPrice)}</td></tr>`)
       ].join('');
       document.querySelector('#costBreakdownTable').innerHTML = costRows;
       document.querySelector('#bomTable').innerHTML = bomRows;
