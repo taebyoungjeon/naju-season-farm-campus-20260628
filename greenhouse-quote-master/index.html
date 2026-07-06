@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MESH 온실 견적 시뮬레이터</title>
+  <script src="./greenhouse-data.js"></script>
+  <style>
+    :root {
+      --bg: #f7f8f5;
+      --ink: #18211d;
+      --muted: #66726c;
+      --line: #d9dfd8;
+      --panel: #ffffff;
+      --field: #f0f4ef;
+      --green: #2c6b4f;
+      --green-2: #4f8b65;
+      --blue: #285b7a;
+      --amber: #a96f21;
+      --danger: #9d3c3c;
+      --shadow: 0 18px 48px rgba(35, 47, 40, .12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      letter-spacing: 0;
+    }
+    button, input, select, textarea { font: inherit; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      background: rgba(247, 248, 245, .94);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+    }
+    .brand { font-weight: 760; }
+    .top-actions { display: flex; gap: 8px; align-items: center; }
+    .ghost-btn, .primary-btn, .icon-btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      min-height: 38px;
+      padding: 0 14px;
+      border-radius: 7px;
+      cursor: pointer;
+    }
+    .primary-btn { background: var(--green); border-color: var(--green); color: #fff; }
+    .icon-btn { width: 38px; padding: 0; display: grid; place-items: center; }
+    .layout {
+      min-height: calc(100vh - 58px);
+      display: grid;
+      grid-template-columns: minmax(320px, 390px) minmax(0, 1fr) minmax(320px, 390px);
+    }
+    aside {
+      border-right: 1px solid var(--line);
+      background: #fff;
+      padding: 18px;
+      overflow: auto;
+      max-height: calc(100vh - 58px);
+    }
+    .right {
+      border-left: 1px solid var(--line);
+      border-right: none;
+    }
+    main {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: minmax(360px, 56vh) auto;
+    }
+    .scene-wrap {
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(#dce9ef 0%, #eff4ee 54%, #d6dfcf 55%, #b9c7a8 100%);
+    }
+    #scene {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .scene-fallback {
+      position: absolute;
+      inset: 0;
+      display: none;
+    }
+    .scene-overlay {
+      position: absolute;
+      left: 22px;
+      bottom: 20px;
+      max-width: min(620px, calc(100% - 44px));
+      color: #13201a;
+      text-shadow: 0 1px 0 rgba(255,255,255,.45);
+    }
+    .scene-overlay h1 {
+      margin: 0 0 8px;
+      font-size: clamp(30px, 4vw, 54px);
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+    .scene-overlay p { margin: 0; color: #34443d; max-width: 560px; }
+    .section {
+      padding: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .section h2, .section h3 {
+      margin: 0 0 12px;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+    .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+    label { font-size: 12px; color: var(--muted); }
+    input, select, textarea {
+      width: 100%;
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--field);
+      color: var(--ink);
+      padding: 8px 10px;
+      outline: none;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--green-2); background: #fff; }
+    textarea { min-height: 78px; resize: vertical; }
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .segmented button {
+      border: 1px solid var(--line);
+      background: var(--field);
+      min-height: 38px;
+      border-radius: 7px;
+      cursor: pointer;
+    }
+    .segmented button.active { background: #e1efe5; border-color: var(--green-2); color: #174b34; font-weight: 700; }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 1px;
+      background: var(--line);
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+    .metric {
+      padding: 16px 18px;
+      background: #fff;
+      min-height: 86px;
+    }
+    .metric .label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .metric .value { font-size: 22px; font-weight: 750; }
+    .metric .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .spec-list { display: grid; gap: 9px; }
+    .spec-row {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .spec-row b { font-size: 13px; }
+    .spec-row span { color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .result-title { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-size: 12px;
+      background: #eef4f0;
+      color: #23513b;
+      white-space: nowrap;
+    }
+    .quote-total {
+      padding: 18px;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+    }
+    .quote-total .amount { font-size: 32px; font-weight: 800; margin: 6px 0; }
+    .quote-total .note { color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .line-items { display: grid; gap: 8px; }
+    .line-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+    }
+    .line-item span { color: var(--muted); }
+    .line-item strong { white-space: nowrap; }
+    .glossary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 10px;
+    }
+    .term {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+      min-height: 128px;
+    }
+    .term h4 { margin: 0 0 6px; font-size: 14px; }
+    .term p { margin: 0 0 8px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .term small { color: var(--blue); }
+    dialog {
+      border: 0;
+      padding: 0;
+      border-radius: 10px;
+      width: min(840px, calc(100vw - 32px));
+      box-shadow: var(--shadow);
+    }
+    dialog::backdrop { background: rgba(20, 30, 24, .38); }
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .modal-body { padding: 18px; max-height: min(72vh, 720px); overflow: auto; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .mini-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .mini-table th, .mini-table td { border-bottom: 1px solid var(--line); padding: 9px 6px; text-align: left; vertical-align: top; }
+    .mini-table th { color: var(--muted); font-weight: 650; width: 38%; }
+    .footer-band {
+      padding: 20px 18px 28px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    @media (max-width: 1120px) {
+      .layout { grid-template-columns: 360px minmax(0, 1fr); }
+      .right { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); max-height: none; }
+    }
+    @media (max-width: 760px) {
+      .topbar { padding: 0 14px; }
+      .layout { display: block; }
+      aside { max-height: none; border-right: 0; border-bottom: 1px solid var(--line); }
+      main { display: block; }
+      .scene-wrap { height: 420px; }
+      .metric-grid { grid-template-columns: 1fr 1fr; }
+      .field-grid, .detail-grid { grid-template-columns: 1fr; }
+      .scene-overlay h1 { font-size: 34px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">MESH 온실 견적 시뮬레이터</div>
+    <div class="top-actions">
+      <button class="ghost-btn" id="resetBtn">초기화</button>
+      <button class="primary-btn" id="openDetailTop">상세문의</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside>
+      <section class="section">
+        <h2>견적 조건</h2>
+        <div class="segmented" id="typeTabs">
+          <button data-type="단동형" class="active">단동</button>
+          <button data-type="연동형">연동</button>
+          <button data-type="광폭형">광폭</button>
+        </div>
+        <div class="field-grid">
+          <div class="field">
+            <label for="widthInput">시설 폭 m</label>
+            <input id="widthInput" type="number" min="3" max="30" step="0.1" value="7">
+          </div>
+          <div class="field">
+            <label for="lengthInput">시설 길이 m</label>
+            <input id="lengthInput" type="number" min="10" max="200" step="1" value="97">
+          </div>
+          <div class="field">
+            <label for="sideInput">측고 m</label>
+            <input id="sideInput" type="number" min="0.8" max="7" step="0.1" value="1.4">
+          </div>
+          <div class="field">
+            <label for="spanInput">동수/연동 수</label>
+            <input id="spanInput" type="number" min="1" max="12" step="1" value="1">
+          </div>
+          <div class="field">
+            <label for="snowInput">요구 적설심 cm</label>
+            <input id="snowInput" type="number" min="20" max="80" step="1" value="35">
+          </div>
+          <div class="field">
+            <label for="windInput">요구 풍속 m/s</label>
+            <input id="windInput" type="number" min="20" max="50" step="1" value="30">
+          </div>
+        </div>
+        <div class="field">
+          <label for="cropInput">작목/용도</label>
+          <select id="cropInput">
+            <option>딸기</option>
+            <option>토마토</option>
+            <option>엽채류</option>
+            <option>육묘</option>
+            <option>포도</option>
+            <option>버섯</option>
+            <option>기타</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="optionsInput">추가 요청</label>
+          <textarea id="optionsInput" placeholder="예: 다겹보온커튼, 측창 자동개폐, MESH 환경제어, 양액기 연동"></textarea>
+        </div>
+      </section>
+      <section class="section">
+        <h3>MESH 환경제어</h3>
+        <div class="field-grid">
+          <div class="field">
+            <label for="controlInput">제어 채널</label>
+            <input id="controlInput" type="number" min="0" max="80" value="6">
+          </div>
+          <div class="field">
+            <label for="sensorInput">센서 포인트</label>
+            <input id="sensorInput" type="number" min="0" max="40" value="1">
+          </div>
+        </div>
+        <div class="field">
+          <label for="hubSelect">허브 선택</label>
+          <select id="hubSelect">
+            <option value="auto">자동 추천</option>
+            <option value="basic">Basic Hub</option>
+            <option value="ai">AI Hub</option>
+          </select>
+        </div>
+      </section>
+    </aside>
+
+    <main>
+      <section class="scene-wrap">
+        <canvas id="scene"></canvas>
+        <canvas id="fallbackScene" class="scene-fallback"></canvas>
+        <div class="scene-overlay">
+          <h1 id="sceneTitle">단동형 7m x 97m</h1>
+          <p id="sceneText">입력 조건에 맞춰 표준 규격과 공사비 기준을 실시간으로 매칭합니다.</p>
+        </div>
+      </section>
+      <section class="metric-grid">
+        <div class="metric"><div class="label">추천 표준규격</div><div class="value" id="modelMetric">-</div><div class="sub" id="modelSub">농사로 2026 + AKAF</div></div>
+        <div class="metric"><div class="label">예상 면적</div><div class="value" id="areaMetric">-</div><div class="sub">폭 x 길이 x 동수</div></div>
+        <div class="metric"><div class="label">초기 투자 범위</div><div class="value" id="totalMetric">-</div><div class="sub">VAT 별도, 참고가</div></div>
+        <div class="metric"><div class="label">월 구독</div><div class="value" id="subMetric">-</div><div class="sub">MESH 선택 시</div></div>
+      </section>
+      <section class="section">
+        <h3>부속 설명</h3>
+        <div class="glossary" id="glossary"></div>
+      </section>
+    </main>
+
+    <aside class="right">
+      <section class="quote-total">
+        <div class="result-title">
+          <div>
+            <div class="badge" id="statusBadge">표준 매칭</div>
+            <div class="amount" id="quoteAmount">-</div>
+          </div>
+          <button class="primary-btn" id="openDetailSide">상세문의</button>
+        </div>
+        <div class="note" id="quoteNote">구조물 기준 공사비와 MESH 환경제어 옵션을 분리해 보여줍니다.</div>
+      </section>
+      <section class="section">
+        <h3>추천 모델 스펙</h3>
+        <div class="spec-list" id="specList"></div>
+      </section>
+      <section class="section">
+        <h3>견적 구성</h3>
+        <div class="line-items" id="lineItems"></div>
+      </section>
+      <section class="footer-band">
+        이 화면은 견적 상담을 시작하기 위한 참고 산출입니다. 최종 견적은 현장 실사, 지역별 적설/풍속, 지반, 전기 인입, 배선 거리, 보온/스크린 사양, 정부지원사업 조건 확인 후 확정됩니다.
+      </section>
+    </aside>
+  </div>
+
+  <dialog id="detailDialog">
+    <div class="modal-head">
+      <strong>상세문의 내역</strong>
+      <button class="icon-btn" id="closeDetail" aria-label="닫기">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="detail-grid">
+        <div>
+          <h3>입력 조건</h3>
+          <table class="mini-table" id="inputTable"></table>
+        </div>
+        <div>
+          <h3>표준/견적 근거</h3>
+          <table class="mini-table" id="basisTable"></table>
+        </div>
+      </div>
+      <h3>상세 요청 메시지</h3>
+      <textarea id="inquiryText"></textarea>
+      <p style="color:var(--muted);font-size:13px;line-height:1.5">홈페이지 적용 시 이 내용은 CRM, 이메일, 카카오 알림톡, 또는 내부 견적 검토 큐로 전송하면 됩니다.</p>
+    </div>
+  </dialog>
+
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
+
+    const data = window.GREENHOUSE_MASTER || [];
+    const glossary = window.COMPONENT_GLOSSARY || [];
+    const els = {
+      width: document.querySelector('#widthInput'),
+      length: document.querySelector('#lengthInput'),
+      side: document.querySelector('#sideInput'),
+      span: document.querySelector('#spanInput'),
+      snow: document.querySelector('#snowInput'),
+      wind: document.querySelector('#windInput'),
+      crop: document.querySelector('#cropInput'),
+      options: document.querySelector('#optionsInput'),
+      control: document.querySelector('#controlInput'),
+      sensor: document.querySelector('#sensorInput'),
+      hub: document.querySelector('#hubSelect')
+    };
+    let facilityType = '단동형';
+    let selected = null;
+
+    function n(v) { return Number(String(v || '').replace(/[^\d.-]/g, '')) || 0; }
+    function won(v) {
+      if (!isFinite(v) || v <= 0) return '-';
+      if (v >= 100000000) return (v / 100000000).toFixed(1).replace('.0','') + '억원';
+      if (v >= 10000) return Math.round(v / 10000).toLocaleString('ko-KR') + '만원';
+      return Math.round(v).toLocaleString('ko-KR') + '원';
+    }
+    function rangeMid(text) {
+      const nums = String(text || '').match(/\d+(?:\.\d+)?/g);
+      if (!nums) return 0;
+      return nums.map(Number).reduce((a,b)=>a+b,0) / nums.length;
+    }
+    function modelScore(row, width, side, snow, wind) {
+      if (row.facility_type !== facilityType) return -1e9;
+      const w = rangeMid(row.width_range_m);
+      const s = rangeMid(row.side_height_range_m);
+      const snowMax = Math.max(...(String(row.snow_depth_range_cm).match(/\d+(?:\.\d+)?/g)||[0]).map(Number));
+      const windMax = Math.max(...(String(row.wind_speed_range_m_s).match(/\d+(?:\.\d+)?/g)||[0]).map(Number));
+      let score = 1000;
+      score -= Math.abs(w - width) * 80;
+      if (s) score -= Math.abs(s - side) * 30;
+      if (snowMax < snow) score -= (snow - snowMax) * 80;
+      if (windMax < wind) score -= (wind - windMax) * 90;
+      if (row.akaf_total_construction_cost_krw) score += 80;
+      if (row.has_design_drawings === 'Y') score += 40;
+      return score;
+    }
+    function pickModel() {
+      const width = n(els.width.value), side = n(els.side.value), snow = n(els.snow.value), wind = n(els.wind.value);
+      return data.slice().sort((a,b)=>modelScore(b,width,side,snow,wind)-modelScore(a,width,side,snow,wind))[0] || data[0];
+    }
+    function meshQuote(areaPyeong) {
+      const control = n(els.control.value);
+      const sensors = n(els.sensor.value);
+      const batteries = sensors;
+      const totalModules = control + sensors + batteries;
+      const forceAi = els.hub.value === 'ai' || (els.hub.value === 'auto' && (areaPyeong > 300 || facilityType !== '단동형'));
+      const hub = els.hub.value === 'basic' ? 510000 : forceAi ? 1750000 : 510000;
+      const cb = control <= 6 ? 730000 : control <= 20 ? 1640000 : 2730000;
+      const hw = hub + cb + control * 145000 + sensors * 195000 + batteries * 195000;
+      const pro = areaPyeong > 1000 || totalModules > 80;
+      const monthly = pro ? 100000 + Math.max(0, totalModules - 80) * 1500 : 30000 + Math.max(0, totalModules - 20) * 2000;
+      return { hw, monthly, plan: pro ? 'Pro' : 'Standard', totalModules };
+    }
+    function installRange(areaPyeong) {
+      if (areaPyeong <= 300) return [400000, 700000];
+      if (areaPyeong <= 1000) return [700000, 1500000];
+      return [1500000, 3500000];
+    }
+    function estimate() {
+      selected = pickModel();
+      const width = n(els.width.value), length = n(els.length.value), span = n(els.span.value);
+      const area = width * length * Math.max(1, span);
+      const pyeong = area / 3.3058;
+      let structure = 0;
+      const costArea = n(selected.akaf_cost_area_m2);
+      const totalCost = n(selected.akaf_total_construction_cost_krw);
+      if (costArea && totalCost) structure = totalCost / costArea * area;
+      else {
+        const fallback = facilityType === '단동형' ? 95000 : facilityType === '연동형' ? 390000 : 280000;
+        structure = fallback * pyeong;
+      }
+      const mesh = meshQuote(pyeong);
+      const [installMin, installMax] = installRange(pyeong);
+      const initialMin = structure + mesh.hw + installMin;
+      const initialMax = structure + mesh.hw + installMax;
+      return { selected, area, pyeong, structure, mesh, installMin, installMax, initialMin, initialMax };
+    }
+    function row(label, value) {
+      return `<div class="spec-row"><b>${label}</b><span>${value || '-'}</span></div>`;
+    }
+    function tableRows(obj) {
+      return Object.entries(obj).map(([k,v]) => `<tr><th>${k}</th><td>${v || '-'}</td></tr>`).join('');
+    }
+    function updateUI() {
+      const q = estimate();
+      document.querySelector('#sceneTitle').textContent = `${facilityType.replace('형','')} ${els.width.value}m x ${els.length.value}m`;
+      document.querySelector('#sceneText').textContent = `${Math.round(q.area).toLocaleString('ko-KR')}㎡, ${Math.round(q.pyeong).toLocaleString('ko-KR')}평 기준. ${q.selected.model_code}와 가장 가깝습니다.`;
+      document.querySelector('#modelMetric').textContent = q.selected.model_code;
+      document.querySelector('#areaMetric').textContent = `${Math.round(q.area).toLocaleString('ko-KR')}㎡`;
+      document.querySelector('#totalMetric').textContent = `${won(q.initialMin)}~${won(q.initialMax)}`;
+      document.querySelector('#subMetric').textContent = `${q.mesh.plan} ${won(q.mesh.monthly)}/월`;
+      document.querySelector('#quoteAmount').textContent = `${won(q.initialMin)}~${won(q.initialMax)}`;
+      document.querySelector('#quoteNote').textContent = `구조물 ${won(q.structure)}, MESH HW ${won(q.mesh.hw)}, 설치/배선 ${won(q.installMin)}~${won(q.installMax)} 기준`;
+      document.querySelector('#statusBadge').textContent = q.selected.data_status.includes('akaf_2024_cost') ? '공사비 기준 매칭' : '표준규격 기준 추정';
+      document.querySelector('#specList').innerHTML = [
+        row('표준 코드', q.selected.model_code),
+        row('시설 유형', q.selected.facility_type),
+        row('내재해 기준', `적설 ${q.selected.snow_depth_range_cm || '-'} / 풍속 ${q.selected.wind_speed_range_m_s || '-'}`),
+        row('규격', `폭 ${q.selected.width_range_m || '-'} / 측고 ${q.selected.side_height_range_m || '-'} / 동고 ${q.selected.ridge_height_range_m || '-'}`),
+        row('서까래', q.selected.rafter_spec),
+        row('가로대/보', q.selected.purlin_or_beam_spec),
+        row('설계도', q.selected.has_design_drawings === 'Y' ? `AKAF 2014 p.${q.selected.akaf_2014_pages}` : '상세 확인 필요')
+      ].join('');
+      document.querySelector('#lineItems').innerHTML = [
+        ['온실 구조/피복/기초 기준', won(q.structure)],
+        ['MESH 환경제어 HW', won(q.mesh.hw)],
+        ['설치·전선·시운전 범위', `${won(q.installMin)}~${won(q.installMax)}`],
+        ['월 구독료', `${q.mesh.plan} ${won(q.mesh.monthly)}/월`],
+        ['상세 산출', q.selected.akaf_cost_parse_status === 'ok' ? 'AKAF 예정공사비 PDF 있음' : '상담 시 상세 산출 필요']
+      ].map(([a,b])=>`<div class="line-item"><span>${a}</span><strong>${b}</strong></div>`).join('');
+      updateScene(q);
+    }
+    function renderGlossary() {
+      const terms = ['서까래','내재해조리개','피복비닐','개폐축','권취/개폐 모터','다겹보온커튼','제어반','MESH Link'];
+      document.querySelector('#glossary').innerHTML = glossary.filter(g => terms.includes(g.term)).map(g => `
+        <article class="term"><h4>${g.term}</h4><p>${g.plain_description}</p><small>${g.why_it_matters_for_quote}</small></article>
+      `).join('');
+    }
+    function openDetail() {
+      const q = estimate();
+      document.querySelector('#inputTable').innerHTML = tableRows({
+        시설형태: facilityType,
+        폭: `${els.width.value}m`,
+        길이: `${els.length.value}m`,
+        측고: `${els.side.value}m`,
+        동수: els.span.value,
+        작목: els.crop.value,
+        MESH: `${els.control.value}ch / 센서 ${els.sensor.value}점`
+      });
+      document.querySelector('#basisTable').innerHTML = tableRows({
+        추천규격: q.selected.model_code,
+        내재해: `적설 ${q.selected.snow_depth_range_cm}, 풍속 ${q.selected.wind_speed_range_m_s}`,
+        구조예상: won(q.structure),
+        MESH_HW: won(q.mesh.hw),
+        초기투자: `${won(q.initialMin)}~${won(q.initialMax)}`,
+        월구독: `${q.mesh.plan} ${won(q.mesh.monthly)}/월`
+      });
+      document.querySelector('#inquiryText').value = `견적 검토 요청: ${facilityType} ${els.width.value}m x ${els.length.value}m x ${els.span.value}동, ${els.crop.value}. 추천규격 ${q.selected.model_code}. 요청사항: ${els.options.value || '상담 후 확정'}`;
+      document.querySelector('#detailDialog').showModal();
+    }
+    document.querySelector('#typeTabs').addEventListener('click', e => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      facilityType = btn.dataset.type;
+      document.querySelectorAll('#typeTabs button').forEach(b=>b.classList.toggle('active', b === btn));
+      if (facilityType === '연동형') { els.width.value = 7; els.span.value = 3; els.side.value = 2.8; els.control.value = 14; els.sensor.value = 2; }
+      if (facilityType === '광폭형') { els.width.value = 14.8; els.span.value = 1; els.side.value = 2.2; els.control.value = 14; els.sensor.value = 2; }
+      if (facilityType === '단동형') { els.width.value = 7; els.span.value = 1; els.side.value = 1.4; els.control.value = 6; els.sensor.value = 1; }
+      updateUI();
+    });
+    Object.values(els).forEach(el => el.addEventListener('input', updateUI));
+    document.querySelector('#resetBtn').addEventListener('click', () => location.reload());
+    document.querySelector('#openDetailTop').addEventListener('click', openDetail);
+    document.querySelector('#openDetailSide').addEventListener('click', openDetail);
+    document.querySelector('#closeDetail').addEventListener('click', () => document.querySelector('#detailDialog').close());
+
+    let scene, camera, renderer, group, fallback = false;
+    function initScene() {
+      const canvas = document.querySelector('#scene');
+      try {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+        camera.position.set(18, 14, 24);
+        camera.lookAt(0, 2, 0);
+        renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x7a8b72, 2.2));
+        const sun = new THREE.DirectionalLight(0xffffff, 2.4);
+        sun.position.set(14, 22, 10);
+        scene.add(sun);
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 60), new THREE.MeshStandardMaterial({ color: 0xb7c5a4, roughness: .9 }));
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.02;
+        scene.add(ground);
+        group = new THREE.Group();
+        scene.add(group);
+        window.addEventListener('resize', resizeScene);
+        resizeScene();
+      } catch (err) {
+        fallback = true;
+        canvas.style.display = 'none';
+        document.querySelector('#fallbackScene').style.display = 'block';
+      }
+    }
+    function resizeScene() {
+      if (fallback || !renderer) return;
+      const wrap = document.querySelector('.scene-wrap');
+      const w = wrap.clientWidth, h = wrap.clientHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+    function archPoints(width, height, side) {
+      const pts = [];
+      const half = width / 2;
+      pts.push(new THREE.Vector3(-half, 0, 0), new THREE.Vector3(-half, side, 0));
+      for (let i=0; i<=24; i++) {
+        const t = Math.PI - (Math.PI * i / 24);
+        pts.push(new THREE.Vector3(Math.cos(t) * half, side + Math.sin(t) * (height-side), 0));
+      }
+      pts.push(new THREE.Vector3(half, 0, 0));
+      return pts;
+    }
+    function updateScene(q) {
+      if (fallback || !renderer) return drawFallback(q);
+      group.clear();
+      const width = Math.min(n(els.width.value), 18);
+      const length = Math.min(n(els.length.value) / 7, 18);
+      const side = Math.min(n(els.side.value), 4);
+      const spans = Math.max(1, Math.min(n(els.span.value), 6));
+      const height = Math.max(side + 1.2, side + width * .28);
+      const frameMat = new THREE.LineBasicMaterial({ color: 0x2b4d42, linewidth: 2 });
+      const coverMat = new THREE.MeshPhysicalMaterial({ color: 0xddeee9, transparent: true, opacity: .38, roughness: .18, metalness: 0, side: THREE.DoubleSide });
+      const floorMat = new THREE.MeshStandardMaterial({ color: 0x8ca77d, roughness: .9 });
+      for (let s=0; s<spans; s++) {
+        const xoff = (s - (spans-1)/2) * width * .82;
+        const shape = new THREE.Shape();
+        const pts2 = archPoints(width, height, side).map(p => [p.x + xoff, p.y]);
+        shape.moveTo(pts2[0][0], pts2[0][1]);
+        pts2.slice(1).forEach(p => shape.lineTo(p[0], p[1]));
+        const geom = new THREE.ExtrudeGeometry(shape, { depth: length, bevelEnabled: false, steps: 1 });
+        geom.translate(0, 0, -length/2);
+        group.add(new THREE.Mesh(geom, coverMat));
+      }
+      const zLines = 7;
+      for (let zi=0; zi<zLines; zi++) {
+        const z = -length/2 + length * zi/(zLines-1);
+        for (let s=0; s<spans; s++) {
+          const xoff = (s - (spans-1)/2) * width * .82;
+          const curve = new THREE.BufferGeometry().setFromPoints(archPoints(width, height, side).map(p => new THREE.Vector3(p.x+xoff, p.y, z)));
+          group.add(new THREE.Line(curve, frameMat));
+        }
+      }
+      for (let s=0; s<spans; s++) {
+        const xoff = (s - (spans-1)/2) * width * .82;
+        for (const x of [-width/2, 0, width/2]) {
+          const geom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x+xoff, side+.2, -length/2), new THREE.Vector3(x+xoff, side+.2, length/2)]);
+          group.add(new THREE.Line(geom, frameMat));
+        }
+      }
+      const base = new THREE.Mesh(new THREE.BoxGeometry(width*spans*.86, .08, length), floorMat);
+      base.position.y = .02;
+      group.add(base);
+      group.rotation.y += 0.002;
+      renderer.render(scene, camera);
+    }
+    function animate() {
+      if (!fallback && renderer && group) {
+        group.rotation.y += 0.0016;
+        renderer.render(scene, camera);
+      }
+      requestAnimationFrame(animate);
+    }
+    function drawFallback(q) {
+      const canvas = document.querySelector('#fallbackScene');
+      const wrap = document.querySelector('.scene-wrap');
+      canvas.width = wrap.clientWidth * 2; canvas.height = wrap.clientHeight * 2;
+      const ctx = canvas.getContext('2d'); ctx.scale(2,2);
+      ctx.clearRect(0,0,wrap.clientWidth,wrap.clientHeight);
+      ctx.strokeStyle = '#254c3c'; ctx.lineWidth = 2;
+      const w = Math.min(wrap.clientWidth*.6, 520), h = 150, x = wrap.clientWidth*.2, y = wrap.clientHeight*.48;
+      for (let i=0;i<6;i++){ const dx=i*28; ctx.beginPath(); ctx.moveTo(x+dx,y+h); ctx.quadraticCurveTo(x+w/2+dx,y-h,x+w+dx,y+h); ctx.stroke(); }
+    }
+    renderGlossary();
+    initScene();
+    updateUI();
+    animate();
+  </script>
+</body>
+</html>
